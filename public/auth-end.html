@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Authentication Complete</title>
+  </head>
+  <body>
+    <script src="https://res.cdn.office.net/teams-js/2.19.0/js/MicrosoftTeams.min.js"></script>
+    <script>
+      (async () => {
+        await microsoftTeams.app.initialize();
+
+        // Parse the hash fragment for auth response
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const queryParams = new URLSearchParams(window.location.search);
+
+        const error = hashParams.get('error') || queryParams.get('error');
+        const errorDescription = hashParams.get('error_description') || queryParams.get('error_description');
+
+        if (error) {
+          microsoftTeams.authentication.notifyFailure(errorDescription || error);
+        } else {
+          // Success - notify Teams
+          microsoftTeams.authentication.notifySuccess(window.location.href);
+        }
+      })();
+    </script>
+    <p>Authentication complete. This window will close automatically.</p>
+  </body>
+</html>
