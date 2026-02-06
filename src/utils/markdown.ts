@@ -74,39 +74,92 @@ turndownService.addRule('underline', {
 });
 
 /**
+ * Escape a string for safe use in an HTML attribute value.
+ * Also encodes newlines so the attribute stays on a single line
+ * (required for marked's HTML block parser to handle the tag correctly).
+ */
+function escapeHtmlAttr(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '&#10;')
+    .replace(/\r/g, '&#13;');
+}
+
+/**
+ * Apply a transform function only to text segments outside fenced code blocks.
+ * Code blocks are returned as-is so that preprocessing regexes don't modify
+ * content inside ``` ... ``` regions.
+ */
+function transformOutsideCodeBlocks(
+  text: string,
+  transform: (segment: string) => string
+): string {
+  const result: string[] = [];
+  // Match fenced code blocks: opening ``` (with optional language) through closing ```
+  const codeBlockRegex = /^(`{3,})([^\n]*)\n([\s\S]*?)\n\1\s*$/gm;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    // Transform non-code segment before this code block
+    if (match.index > lastIndex) {
+      result.push(transform(text.slice(lastIndex, match.index)));
+    }
+    // Keep code block as-is
+    result.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Transform remaining non-code segment
+  if (lastIndex < text.length) {
+    result.push(transform(text.slice(lastIndex)));
+  }
+
+  return result.join('');
+}
+
+/**
  * Convert markdown to HTML, handling comment markers and special syntax
  */
 export function markdownToHtml(markdown: string): string {
-  // Pre-process: Convert comment markers to spans
+  // Step 1: Convert mermaid code blocks to divs (targets ```mermaid specifically)
   let processed = markdown.replace(
-    /<!--MDEDIT_COMMENT_START:([^>]+)-->([\s\S]*?)<!--MDEDIT_COMMENT_END:\1-->/g,
-    (_match, id, content) => {
-      return `<span data-comment-id="${id}" class="comment-highlight">${content}</span>`;
-    }
-  );
-
-  // Pre-process: Convert mermaid code blocks to divs
-  // Handle various formats: ```mermaid, ``` mermaid, with/without trailing newline
-  // Add placeholder content so turndown doesn't skip empty divs
-  processed = processed.replace(
     /```\s*mermaid\s*\n([\s\S]*?)\n?```/gi,
     (_match, code) => {
-      // Only escape quotes for HTML attribute
-      const escapedCode = code.trim().replace(/"/g, '&quot;');
+      // Escape all HTML-special chars so <br/>, <|-- etc. in mermaid code
+      // don't break the HTML parser when placed inside an attribute
+      const escapedCode = escapeHtmlAttr(code.trim());
       return `<div data-type="mermaid" data-code="${escapedCode}">mermaid</div>`;
     }
   );
 
-  // Pre-process: Handle task list items
-  processed = processed.replace(
-    /^- \[([ xX])\] (.*)$/gm,
-    (_match, checked, content) => {
-      const isChecked = checked.toLowerCase() === 'x';
-      return `<li data-type="taskItem" data-checked="${isChecked}">${content}</li>`;
-    }
-  );
+  // Step 2: Apply comment and task preprocessing only outside remaining code blocks
+  processed = transformOutsideCodeBlocks(processed, (segment) => {
+    // Convert comment markers to spans
+    segment = segment.replace(
+      /<!--MDEDIT_COMMENT_START:([^>]+)-->([\s\S]*?)<!--MDEDIT_COMMENT_END:\1-->/g,
+      (_match, id, content) => {
+        const safeId = escapeHtmlAttr(id);
+        return `<span data-comment-id="${safeId}" class="comment-highlight">${content}</span>`;
+      }
+    );
 
-  // Convert markdown to HTML
+    // Handle task list items
+    segment = segment.replace(
+      /^- \[([ xX])\] (.*)$/gm,
+      (_match, checked, content) => {
+        const isChecked = checked.toLowerCase() === 'x';
+        return `<li data-type="taskItem" data-checked="${isChecked}">${content}</li>`;
+      }
+    );
+
+    return segment;
+  });
+
+  // Step 3: Convert markdown to HTML
   const html = marked.parse(processed) as string;
 
   return html;

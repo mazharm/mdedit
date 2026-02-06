@@ -1,5 +1,16 @@
 import { graphGet, graphPut, GetTokenFn, GraphFile, GraphResponse } from './graphService';
 
+/**
+ * Validate that an ID is safe for use in Graph API URL paths.
+ * Prevents path traversal and injection via crafted IDs.
+ */
+function validateId(id: string): string {
+  if (!id || /[/\\?#&]/.test(id)) {
+    throw new Error(`Invalid ID: ${id}`);
+  }
+  return id;
+}
+
 export interface DriveFile {
   id: string;
   name: string;
@@ -45,9 +56,10 @@ export async function listFolderFiles(
   folderId: string
 ): Promise<DriveFile[]> {
   try {
+    const safeFolderId = validateId(folderId);
     const response = await graphGet<GraphResponse<GraphFile>>(
       getToken,
-      `/me/drive/items/${folderId}/children?$select=id,name,size,lastModifiedDateTime,webUrl,folder,file,parentReference&$orderby=name`
+      `/me/drive/items/${safeFolderId}/children?$select=id,name,size,lastModifiedDateTime,webUrl,folder,file,parentReference&$orderby=name`
     );
 
     return response.value.map(mapGraphFile);
@@ -62,10 +74,11 @@ export async function getFileContent(
   fileId: string
 ): Promise<string> {
   try {
+    const safeFileId = validateId(fileId);
     // Get the download URL
     const item = await graphGet<GraphFile>(
       getToken,
-      `/me/drive/items/${fileId}?$select=@microsoft.graph.downloadUrl`
+      `/me/drive/items/${safeFileId}?$select=@microsoft.graph.downloadUrl`
     );
 
     const downloadUrl = item['@microsoft.graph.downloadUrl'];
@@ -93,9 +106,10 @@ export async function saveFile(
   content: string
 ): Promise<DriveFile> {
   try {
+    const safeFileId = validateId(fileId);
     const response = await graphPut<GraphFile>(
       getToken,
-      `/me/drive/items/${fileId}/content`,
+      `/me/drive/items/${safeFileId}/content`,
       content
     );
 
@@ -140,13 +154,14 @@ export async function createFileInFolder(
   content: string
 ): Promise<DriveFile> {
   try {
+    const safeFolderId = validateId(folderId);
     // Ensure filename ends with .md
     const name = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
     const encodedName = encodeURIComponent(name);
 
     const response = await graphPut<GraphFile>(
       getToken,
-      `/me/drive/items/${folderId}:/${encodedName}:/content`,
+      `/me/drive/items/${safeFolderId}:/${encodedName}:/content`,
       content
     );
 
@@ -162,7 +177,10 @@ export async function searchFiles(
   query: string
 ): Promise<DriveFile[]> {
   try {
-    const encodedQuery = encodeURIComponent(query);
+    // Sanitize query to prevent OData injection: strip quotes and control characters
+    const sanitized = query.replace(/['"\\\x00-\x1f]/g, '');
+    if (!sanitized.trim()) return [];
+    const encodedQuery = encodeURIComponent(sanitized);
     const response = await graphGet<GraphResponse<GraphFile>>(
       getToken,
       `/me/drive/root/search(q='${encodedQuery}')?$select=id,name,size,lastModifiedDateTime,webUrl,folder,file,parentReference&$top=20`
@@ -200,9 +218,10 @@ export async function getFileMetadata(
   fileId: string
 ): Promise<DriveFile> {
   try {
+    const safeFileId = validateId(fileId);
     const response = await graphGet<GraphFile>(
       getToken,
-      `/me/drive/items/${fileId}?$select=id,name,size,lastModifiedDateTime,webUrl,folder,file,parentReference`
+      `/me/drive/items/${safeFileId}?$select=id,name,size,lastModifiedDateTime,webUrl,folder,file,parentReference`
     );
 
     return mapGraphFile(response);

@@ -1,5 +1,13 @@
 import { graphGet, graphPost, graphPatch, graphDelete, GetTokenFn, GraphResponse } from './graphService';
 
+/** Validate that an ID is safe for use in Graph API URL paths. */
+function validateId(id: string): string {
+  if (!id || /[/\\?#&]/.test(id)) {
+    throw new Error(`Invalid ID: ${id}`);
+  }
+  return id;
+}
+
 export interface TaskInput {
   title: string;
   body?: string;
@@ -101,11 +109,12 @@ export async function completeTask(
   listId?: string
 ): Promise<void> {
   try {
-    const actualListId = listId || (await getOrCreateTaskList(getToken));
+    const actualListId = validateId(listId || (await getOrCreateTaskList(getToken)));
+    const safeTaskId = validateId(taskId);
 
     await graphPatch<TodoTask>(
       getToken,
-      `/me/todo/lists/${actualListId}/tasks/${taskId}`,
+      `/me/todo/lists/${actualListId}/tasks/${safeTaskId}`,
       { status: 'completed' }
     );
   } catch (error) {
@@ -120,11 +129,12 @@ export async function uncompleteTask(
   listId?: string
 ): Promise<void> {
   try {
-    const actualListId = listId || (await getOrCreateTaskList(getToken));
+    const actualListId = validateId(listId || (await getOrCreateTaskList(getToken)));
+    const safeTaskId = validateId(taskId);
 
     await graphPatch<TodoTask>(
       getToken,
-      `/me/todo/lists/${actualListId}/tasks/${taskId}`,
+      `/me/todo/lists/${actualListId}/tasks/${safeTaskId}`,
       { status: 'notStarted' }
     );
   } catch (error) {
@@ -139,9 +149,10 @@ export async function deleteTask(
   listId?: string
 ): Promise<void> {
   try {
-    const actualListId = listId || (await getOrCreateTaskList(getToken));
+    const actualListId = validateId(listId || (await getOrCreateTaskList(getToken)));
+    const safeTaskId = validateId(taskId);
 
-    await graphDelete(getToken, `/me/todo/lists/${actualListId}/tasks/${taskId}`);
+    await graphDelete(getToken, `/me/todo/lists/${actualListId}/tasks/${safeTaskId}`);
   } catch (error) {
     console.error('Failed to delete task:', error);
     throw error;

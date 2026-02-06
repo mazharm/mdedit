@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -114,6 +114,34 @@ export const WysiwygEditor = forwardRef<WysiwygEditorRef, WysiwygEditorProps>(
     const [misspelledWord, setMisspelledWord] = useState<SpellSuggestion | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // Debounce onChange to avoid expensive htmlToMarkdown on every keystroke
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const onChangeRef = useRef(onChange);
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+    const debouncedOnChange = useMemo(() => {
+      return (html: string) => {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+        debounceTimerRef.current = setTimeout(() => {
+          if (onChangeRef.current) {
+            const md = htmlToMarkdown(html);
+            onChangeRef.current(md);
+          }
+        }, 150);
+      };
+    }, []);
+
+    // Clean up debounce timer on unmount
+    useEffect(() => {
+      return () => {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+      };
+    }, []);
+
     const editor = useEditor({
       extensions: [
         StarterKit.configure({
@@ -162,11 +190,7 @@ export const WysiwygEditor = forwardRef<WysiwygEditorRef, WysiwygEditorProps>(
         },
       },
       onUpdate: ({ editor }) => {
-        if (onChange) {
-          const html = editor.getHTML();
-          const markdown = htmlToMarkdown(html);
-          onChange(markdown);
-        }
+        debouncedOnChange(editor.getHTML());
       },
       onSelectionUpdate: ({ editor }) => {
         const { from, to } = editor.state.selection;
@@ -325,19 +349,23 @@ export const WysiwygEditor = forwardRef<WysiwygEditorRef, WysiwygEditorProps>(
             let targetPos: number | null = null;
 
             doc.descendants((node, pos) => {
+              if (targetPos !== null) return false; // Stop traversal once found
               node.marks.forEach((mark) => {
                 if (mark.type.name === 'commentMark' && mark.attrs.commentId === id) {
                   targetPos = pos;
                 }
               });
+              return targetPos === null; // Continue only if not found
             });
 
             if (targetPos !== null) {
               editor.commands.setTextSelection(targetPos);
               editor.commands.scrollIntoView();
 
+              // Use CSS.escape to prevent selector injection from crafted IDs
+              const escapedId = CSS.escape(id);
               const commentElement = document.querySelector(
-                `[data-comment-id="${id}"]`
+                `[data-comment-id="${escapedId}"]`
               );
               if (commentElement) {
                 commentElement.classList.add('active');

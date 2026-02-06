@@ -1,6 +1,17 @@
 // IndexedDB store for persisting file handles across sessions
 // File handles can be stored in IndexedDB and permission re-requested later
 
+// Augment FileSystemFileHandle with Permission API methods
+// These are part of the File System Access API but not yet in standard TS lib
+interface FileSystemPermissionDescriptor {
+  mode?: 'read' | 'readwrite';
+}
+
+interface FileSystemFileHandleWithPermissions extends FileSystemFileHandle {
+  queryPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
+  requestPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
+}
+
 const DB_NAME = 'mdedit-file-handles';
 const STORE_NAME = 'handles';
 const DB_VERSION = 1;
@@ -96,13 +107,15 @@ export async function requestPermissionAndRead(
   handle: FileSystemFileHandle
 ): Promise<{ content: string; handle: FileSystemFileHandle } | null> {
   try {
+    // Cast to extended interface for Permission API methods
+    const extHandle = handle as FileSystemFileHandleWithPermissions;
     // Check if we already have permission
-    const options: FileSystemHandlePermissionDescriptor = { mode: 'readwrite' };
-    let permission = await handle.queryPermission(options);
+    const options: FileSystemPermissionDescriptor = { mode: 'readwrite' };
+    let permission = await extHandle.queryPermission(options);
 
     if (permission !== 'granted') {
       // Request permission - this requires user interaction
-      permission = await handle.requestPermission(options);
+      permission = await extHandle.requestPermission(options);
     }
 
     if (permission !== 'granted') {

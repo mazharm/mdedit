@@ -15,6 +15,15 @@ interface GraphPerson {
   mail?: string;
 }
 
+/**
+ * Sanitize a search query to prevent OData injection.
+ * Strips characters that could break OData query syntax.
+ */
+function sanitizeSearchQuery(query: string): string {
+  // Remove characters that could break OData/search syntax: " ' \ and control chars
+  return query.replace(/["'\\<>{}|^~`\x00-\x1f]/g, '');
+}
+
 export async function searchUsers(
   getToken: GetTokenFn,
   query: string,
@@ -24,8 +33,12 @@ export async function searchUsers(
     return [];
   }
 
-  // Encode the query for URL
-  const encodedQuery = encodeURIComponent(query);
+  const sanitizedQuery = sanitizeSearchQuery(query);
+  if (!sanitizedQuery || sanitizedQuery.length < 2) {
+    return [];
+  }
+
+  const encodedQuery = encodeURIComponent(sanitizedQuery);
 
   try {
     // Try People API first (better relevance based on user's connections)
@@ -51,7 +64,7 @@ export async function searchUsers(
   // Fallback to Users API
   try {
     // Escape single quotes for OData string literals (e.g. O'Brien -> O''Brien)
-    const odataQuery = query.replace(/'/g, "''");
+    const odataQuery = sanitizedQuery.replace(/'/g, "''");
     const encodedOdataQuery = encodeURIComponent(odataQuery);
     const usersResponse = await graphGet<GraphResponse<GraphPerson>>(
       getToken,

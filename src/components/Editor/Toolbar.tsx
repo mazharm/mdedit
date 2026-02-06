@@ -160,21 +160,31 @@ export function Toolbar({
     wysiwygRef.current?.executeCommand(command, options);
   }, [wysiwygRef]);
 
+  // Validate URL to prevent javascript: and other dangerous protocols
+  const isValidUrl = useCallback((url: string): boolean => {
+    const trimmed = url.trim().toLowerCase();
+    // Block dangerous protocols
+    if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:text/html') || trimmed.startsWith('vbscript:')) {
+      return false;
+    }
+    return true;
+  }, []);
+
   const handleInsertLink = useCallback(() => {
-    if (linkUrl) {
+    if (linkUrl && isValidUrl(linkUrl)) {
       executeCommand('link', { url: linkUrl });
     }
     setLinkUrl('');
     setLinkDialogOpen(false);
-  }, [linkUrl, executeCommand]);
+  }, [linkUrl, executeCommand, isValidUrl]);
 
   const handleInsertImage = useCallback(() => {
-    if (imageUrl) {
+    if (imageUrl && isValidUrl(imageUrl)) {
       executeCommand('image', { src: imageUrl });
     }
     setImageUrl('');
     setImageDialogOpen(false);
-  }, [imageUrl, executeCommand]);
+  }, [imageUrl, executeCommand, isValidUrl]);
 
   return (
     <div className={styles.toolbar}>

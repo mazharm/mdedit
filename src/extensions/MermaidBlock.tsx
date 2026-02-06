@@ -17,16 +17,21 @@ function initMermaid() {
   mermaidInitialized = true;
 }
 
-// Sanitize SVG by stripping <script> tags and event handler attributes
+// Sanitize SVG by stripping <script> tags and event handler attributes.
+// Parse as HTML (not XML) because mermaid generates HTML elements like <br>
+// inside <foreignObject> for label line breaks. Strict XML parsing would
+// reject these and corrupt the SVG output.
 function sanitizeSvg(svg: string): string {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(svg, 'image/svg+xml');
+  const doc = parser.parseFromString(svg, 'text/html');
+  const svgEl = doc.body.querySelector('svg');
+  if (!svgEl) return svg; // Fallback to original if parsing failed
 
   // Remove all script elements
-  doc.querySelectorAll('script').forEach((el) => el.remove());
+  svgEl.querySelectorAll('script').forEach((el) => el.remove());
 
   // Remove event handler attributes (onclick, onload, onerror, etc.)
-  const allElements = doc.querySelectorAll('*');
+  const allElements = svgEl.querySelectorAll('*');
   allElements.forEach((el) => {
     for (const attr of Array.from(el.attributes)) {
       if (attr.name.startsWith('on')) {
@@ -41,7 +46,13 @@ function sanitizeSvg(svg: string): string {
     }
   });
 
-  return new XMLSerializer().serializeToString(doc.documentElement);
+  // Replace hardcoded width/height with 100% so the SVG scales to fill
+  // its container. The viewBox preserves the aspect ratio.
+  svgEl.setAttribute('width', '100%');
+  svgEl.removeAttribute('height');
+  svgEl.removeAttribute('style');
+
+  return svgEl.outerHTML;
 }
 
 export interface MermaidBlockOptions {
@@ -62,6 +73,28 @@ function getMermaidId(): string {
   return `mermaid-${Date.now()}-${++mermaidCounter}`;
 }
 
+// Render queue to serialize mermaid.render() calls.
+// Concurrent calls corrupt mermaid's internal parser state.
+let renderQueue: Promise<void> = Promise.resolve();
+
+function queueMermaidRender(code: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    renderQueue = renderQueue.then(async () => {
+      const id = getMermaidId();
+      try {
+        initMermaid();
+        const { svg } = await mermaid.render(id, code);
+        resolve(svg);
+      } catch (err) {
+        // Clean up any leftover DOM elements from failed render
+        const el = document.getElementById(id);
+        if (el) el.remove();
+        reject(err);
+      }
+    });
+  });
+}
+
 // Mermaid NodeView Component
 function MermaidComponent({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const [isEditing, setIsEditing] = React.useState(!node.attrs.code);
@@ -71,25 +104,27 @@ function MermaidComponent({ node, updateAttributes, deleteNode }: NodeViewProps)
 
   const code = node.attrs.code || '';
 
-  // Render mermaid diagram
+  // Render mermaid diagram via serialized queue
   React.useEffect(() => {
     if (isEditing || !code) return;
 
-    initMermaid();
+    let cancelled = false;
 
-    const renderDiagram = async () => {
-      try {
-        const id = getMermaidId();
-        const { svg: renderedSvg } = await mermaid.render(id, code);
-        setSvg(sanitizeSvg(renderedSvg));
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to render diagram');
-        setSvg('');
-      }
-    };
+    queueMermaidRender(code)
+      .then((renderedSvg) => {
+        if (!cancelled) {
+          setSvg(sanitizeSvg(renderedSvg));
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to render diagram');
+          setSvg('');
+        }
+      });
 
-    renderDiagram();
+    return () => { cancelled = true; };
   }, [code, isEditing]);
 
   // Handle tab key in textarea

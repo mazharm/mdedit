@@ -149,6 +149,9 @@ const useStyles = makeStyles({
 
 interface CommentSidebarProps {
   onCommentClick: (id: string) => void;
+  onCommentDelete?: (id: string) => void;
+  onCommentResolve?: (id: string) => void;
+  onCommentUnresolve?: (id: string) => void;
   isAuthenticated: boolean;
   onSignIn: () => void;
   getToken: GetTokenFn;
@@ -157,6 +160,9 @@ interface CommentSidebarProps {
 
 export function CommentSidebar({
   onCommentClick,
+  onCommentDelete,
+  onCommentResolve,
+  onCommentUnresolve,
   isAuthenticated,
   onSignIn,
   getToken,
@@ -261,14 +267,16 @@ export function CommentSidebar({
     setMentions((prev) => [...prev, person]);
   }, []);
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
+  const dateFormatter = React.useMemo(
+    () => new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
-    }).format(date);
-  };
+    }),
+    []
+  );
+  const formatDate = (date: Date) => dateFormatter.format(date);
 
   const renderMentions = (text: string, mentionList: Person[]): React.ReactNode => {
     if (!mentionList?.length) return text;
@@ -405,7 +413,7 @@ export function CommentSidebar({
                       icon={<ArrowUndo24Regular />}
                       size="small"
                       appearance="subtle"
-                      onClick={() => unresolve(comment.id)}
+                      onClick={() => { unresolve(comment.id); onCommentUnresolve?.(comment.id); }}
                     />
                   </Tooltip>
                 ) : (
@@ -414,7 +422,7 @@ export function CommentSidebar({
                       icon={<Checkmark24Regular />}
                       size="small"
                       appearance="subtle"
-                      onClick={() => resolve(comment.id)}
+                      onClick={() => { resolve(comment.id); onCommentResolve?.(comment.id); }}
                     />
                   </Tooltip>
                 )}
@@ -423,7 +431,7 @@ export function CommentSidebar({
                     icon={<Delete24Regular />}
                     size="small"
                     appearance="subtle"
-                    onClick={() => deleteComment(comment.id)}
+                    onClick={() => { onCommentDelete?.(comment.id); deleteComment(comment.id); }}
                   />
                 </Tooltip>
               </div>

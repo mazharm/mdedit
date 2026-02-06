@@ -281,6 +281,36 @@ function AppContent() {
     []
   );
 
+  // Handle comment deletion (remove mark from editor + sync markdown)
+  const handleCommentDelete = useCallback(
+    (commentId: string) => {
+      if (wysiwygRef.current) {
+        wysiwygRef.current.removeComment(commentId);
+      }
+    },
+    []
+  );
+
+  // Handle comment resolve (update mark in editor)
+  const handleCommentResolve = useCallback(
+    (commentId: string) => {
+      if (wysiwygRef.current) {
+        wysiwygRef.current.resolveComment(commentId);
+      }
+    },
+    []
+  );
+
+  // Handle comment unresolve (update mark in editor)
+  const handleCommentUnresolve = useCallback(
+    (commentId: string) => {
+      if (wysiwygRef.current) {
+        wysiwygRef.current.unresolveComment(commentId);
+      }
+    },
+    []
+  );
+
   // Handle add comment from selection or current word
   const handleAddComment = useCallback(() => {
     if (wysiwygRef.current) {
@@ -354,6 +384,9 @@ function AppContent() {
           <div className={styles.sidebar}>
             <CommentSidebar
               onCommentClick={handleCommentClick}
+              onCommentDelete={handleCommentDelete}
+              onCommentResolve={handleCommentResolve}
+              onCommentUnresolve={handleCommentUnresolve}
               isAuthenticated={isAuthenticated}
               onSignIn={signIn}
               getToken={getToken}
