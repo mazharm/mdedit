@@ -18,6 +18,7 @@ import { OneDrivePicker } from './OneDrivePicker';
 import { LocalFilePicker, FSAFileHandle } from './LocalFilePicker';
 import type { GetTokenFn } from '../../services/graphService';
 import type { FileInfo } from '../../stores/fileStore';
+import type { AuthCapabilities } from '../../hooks/useAuth';
 
 export type { FSAFileHandle };
 
@@ -55,6 +56,7 @@ interface FilePickerProps {
   isAuthenticated: boolean;
   currentFile: FileInfo | null;
   initialMode?: Mode;
+  capabilities?: AuthCapabilities;
 }
 
 export function FilePicker({
@@ -66,9 +68,11 @@ export function FilePicker({
   isAuthenticated,
   currentFile,
   initialMode = 'open',
+  capabilities,
 }: FilePickerProps) {
   const styles = useStyles();
-  const [selectedTab, setSelectedTab] = useState<TabValue>('onedrive');
+  const canUseOneDrive = capabilities?.canUseOneDrive ?? true;
+  const [selectedTab, setSelectedTab] = useState<TabValue>(canUseOneDrive ? 'onedrive' : 'local');
   const [mode, setMode] = useState<Mode>(initialMode);
   const [saveFileName, setSaveFileName] = useState('');
 
@@ -79,8 +83,12 @@ export function FilePicker({
       if (initialMode === 'save' && currentFile) {
         setSaveFileName(currentFile.name);
       }
+      // Auto-select local tab when OneDrive is not available
+      if (!canUseOneDrive) {
+        setSelectedTab('local');
+      }
     }
-  }, [open, initialMode, currentFile]);
+  }, [open, initialMode, currentFile, canUseOneDrive]);
 
   const handleOpenModeChange = useCallback((newMode: Mode) => {
     setMode(newMode);
@@ -137,9 +145,11 @@ export function FilePicker({
               selectedValue={selectedTab}
               onTabSelect={(_, data) => setSelectedTab(data.value as TabValue)}
             >
-              <Tab value="onedrive" icon={<Cloud24Regular />}>
-                OneDrive
-              </Tab>
+              {canUseOneDrive && (
+                <Tab value="onedrive" icon={<Cloud24Regular />}>
+                  OneDrive
+                </Tab>
+              )}
               <Tab value="local" icon={<Folder24Regular />}>
                 Local Files
               </Tab>

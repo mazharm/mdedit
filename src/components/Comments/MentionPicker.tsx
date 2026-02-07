@@ -8,6 +8,7 @@ import {
   Spinner,
 } from '@fluentui/react-components';
 import { searchUsers, Person } from '../../services/peopleService';
+import { searchLocalAuthors } from '../../services/localPeopleService';
 import type { GetTokenFn } from '../../services/graphService';
 
 const useStyles = makeStyles({
@@ -68,6 +69,8 @@ interface MentionPickerProps {
   getToken: GetTokenFn;
   isAuthenticated: boolean;
   placeholder?: string;
+  canUsePeopleSearch?: boolean;
+  localAuthors?: Person[];
 }
 
 export function MentionPicker({
@@ -77,6 +80,8 @@ export function MentionPicker({
   getToken,
   isAuthenticated,
   placeholder = 'Type @ to mention someone...',
+  canUsePeopleSearch = true,
+  localAuthors,
 }: MentionPickerProps) {
   const styles = useStyles();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -90,27 +95,37 @@ export function MentionPicker({
 
   // Search for users when query changes
   useEffect(() => {
-    if (!searchQuery || searchQuery.length < 2 || !isAuthenticated) {
+    if (!searchQuery || searchQuery.length < 2) {
       setResults([]);
       return;
     }
 
-    const searchTimeout = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const users = await searchUsers(getToken, searchQuery);
-        setResults(users);
-        setSelectedIndex(0);
-      } catch (error) {
-        console.error('Failed to search users:', error);
-        setResults([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 300);
+    // Use Graph People API when available, otherwise fall back to local authors
+    if (isAuthenticated && canUsePeopleSearch) {
+      const searchTimeout = setTimeout(async () => {
+        setIsLoading(true);
+        try {
+          const users = await searchUsers(getToken, searchQuery);
+          setResults(users);
+          setSelectedIndex(0);
+        } catch (error) {
+          console.error('Failed to search users:', error);
+          setResults([]);
+        } finally {
+          setIsLoading(false);
+        }
+      }, 300);
 
-    return () => clearTimeout(searchTimeout);
-  }, [searchQuery, getToken, isAuthenticated]);
+      return () => clearTimeout(searchTimeout);
+    } else if (localAuthors && localAuthors.length > 0) {
+      // Local author search (synchronous, no debounce needed)
+      const matched = searchLocalAuthors(localAuthors, searchQuery);
+      setResults(matched);
+      setSelectedIndex(0);
+    } else {
+      setResults([]);
+    }
+  }, [searchQuery, getToken, isAuthenticated, canUsePeopleSearch, localAuthors]);
 
   const handleChange = useCallback(
     (_e: React.ChangeEvent<HTMLTextAreaElement>, data: { value: string }) => {
@@ -201,7 +216,7 @@ export function MentionPicker({
         placeholder={placeholder}
         resize="vertical"
       />
-      {isOpen && isAuthenticated && (
+      {isOpen && (isAuthenticated || (localAuthors && localAuthors.length > 0)) && (
         <div className={styles.dropdown}>
           {isLoading ? (
             <div className={styles.loading}>

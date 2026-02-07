@@ -21,6 +21,7 @@
     "@fluentui/react-components": "^9.46.0",
     "@fluentui/react-icons": "^2.0.233",
     "@microsoft/teams-js": "^2.19.0",
+    "@react-oauth/google": "^0.13.4",
     "@tiptap/extension-code-block-lowlight": "^2.2.4",
     "@tiptap/extension-image": "^2.2.4",
     "@tiptap/extension-link": "^2.2.4",

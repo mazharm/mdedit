@@ -51,6 +51,7 @@ import {
 } from '@fluentui/react-icons';
 import type { WysiwygEditorRef } from '../../stores/editorStore';
 import type { FileInfo } from '../../stores/fileStore';
+import type { AuthProvider } from '../../stores/commentStore';
 
 const useStyles = makeStyles({
   toolbar: {
@@ -109,6 +110,7 @@ interface User {
   mail: string | null;
   userPrincipalName: string;
   avatar?: string;
+  provider?: AuthProvider;
 }
 
 interface ToolbarProps {
@@ -122,6 +124,7 @@ interface ToolbarProps {
   user: User | null;
   onSignIn: () => void;
   onSignOut: () => void;
+  activeProvider?: AuthProvider | null;
   currentFile: FileInfo | null;
   isDirty: boolean;
   isSaving?: boolean;
@@ -140,6 +143,7 @@ export function Toolbar({
   user,
   onSignIn,
   onSignOut,
+  activeProvider,
   currentFile,
   isDirty,
   isSaving = false,
@@ -493,6 +497,11 @@ export function Toolbar({
                 <MenuItem disabled>
                   <Text size={200}>{user.mail || user.userPrincipalName}</Text>
                 </MenuItem>
+                {activeProvider && (
+                  <MenuItem disabled>
+                    <Text size={200}>Signed in via {activeProvider === 'microsoft' ? 'Microsoft' : 'Google'}</Text>
+                  </MenuItem>
+                )}
                 <MenuItem icon={<SignOut24Regular />} onClick={onSignOut}>
                   Sign out
                 </MenuItem>

@@ -24,6 +24,7 @@ import { MentionPicker } from './MentionPicker';
 import { createTask } from '../../services/todoService';
 import type { Person } from '../../services/peopleService';
 import type { GetTokenFn } from '../../services/graphService';
+import type { AuthCapabilities } from '../../hooks/useAuth';
 
 const useStyles = makeStyles({
   container: {
@@ -156,6 +157,8 @@ interface CommentSidebarProps {
   onSignIn: () => void;
   getToken: GetTokenFn;
   onCollapse?: () => void;
+  capabilities?: AuthCapabilities;
+  localAuthors?: Person[];
 }
 
 export function CommentSidebar({
@@ -167,6 +170,8 @@ export function CommentSidebar({
   onSignIn,
   getToken,
   onCollapse,
+  capabilities,
+  localAuthors,
 }: CommentSidebarProps) {
   const styles = useStyles();
   const {
@@ -216,8 +221,8 @@ export function CommentSidebar({
         assignedTo: assignee,
       });
 
-      // Create task if assignee is set
-      if (assignee && isAuthenticated) {
+      // Create task if assignee is set (only for providers with Todo API access)
+      if (assignee && isAuthenticated && capabilities?.canUseTodoTasks) {
         try {
           const comment = comments[commentId];
           await createTask(getToken, {
@@ -236,7 +241,7 @@ export function CommentSidebar({
       setMentions([]);
       setAssignee(null);
     },
-    [editText, mentions, assignee, update, comments, isAuthenticated, getToken]
+    [editText, mentions, assignee, update, comments, isAuthenticated, getToken, capabilities]
   );
 
   const handleCancelEdit = useCallback(() => {
@@ -449,6 +454,8 @@ export function CommentSidebar({
                   onMentionSelect={handleMentionSelect}
                   getToken={getToken}
                   isAuthenticated={isAuthenticated}
+                  canUsePeopleSearch={capabilities?.canUsePeopleSearch}
+                  localAuthors={localAuthors}
                 />
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <Button

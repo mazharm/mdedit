@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   FluentProvider,
   webLightTheme,
@@ -15,19 +15,23 @@ import {
 } from '@fluentui/react-components';
 import { ChevronLeft24Regular } from '@fluentui/react-icons';
 import { useTeamsContext } from './hooks/useTeamsContext';
-import { useTeamsSSO } from './hooks/useTeamsSSO';
+import { useAuth } from './hooks/useAuth';
 import { SplitPane } from './components/Editor/SplitPane';
 import { Toolbar } from './components/Editor/Toolbar';
 import { WysiwygEditor } from './components/Editor/WysiwygEditor';
 import { MarkdownEditor } from './components/Editor/MarkdownEditor';
 import { CommentSidebar } from './components/Comments/CommentSidebar';
 import { FilePicker } from './components/FileManager/FilePicker';
+import { SignInDialog } from './components/Auth/SignInDialog';
 import { useCommentStore } from './stores/commentStore';
 import { useFileStore } from './stores/fileStore';
 import { extractCommentsFromMarkdown, embedCommentsInMarkdown } from './utils/markdown';
 import { saveFile } from './services/oneDriveService';
+import { extractKnownAuthors } from './services/localPeopleService';
 import type { FSAFileHandle } from './components/FileManager/FilePicker';
 import type { WysiwygEditorRef, MarkdownEditorRef } from './stores/editorStore';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const useStyles = makeStyles({
   container: {
@@ -89,12 +93,22 @@ type ViewMode = 'wysiwyg' | 'split' | 'markdown';
 function AppContent() {
   const styles = useStyles();
   const { isInitialized, initError } = useTeamsContext();
-  const { user, isAuthenticated, getToken, signIn, signOut } = useTeamsSSO();
+  const {
+    user,
+    isAuthenticated,
+    capabilities,
+    activeProvider,
+    getToken,
+    signInWithMicrosoft,
+    signInWithGoogle,
+    signOut,
+  } = useAuth();
 
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [showComments, setShowComments] = useState(true);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerMode, setFilePickerMode] = useState<'open' | 'save'>('open');
+  const [showSignInDialog, setShowSignInDialog] = useState(false);
   const isUpdatingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [markdown, setMarkdown] = useState('');
@@ -106,9 +120,10 @@ function AppContent() {
   const { comments, loadComments, setCurrentUser } = useCommentStore();
   const { currentFile, setCurrentFile, isDirty, setIsDirty } = useFileStore();
 
-  // Note: In async callbacks (handleSaveFile), use useFileStore.getState() to get
-  // fresh state and avoid stale closures. In synchronous handlers, the hook-based
-  // destructured values above are fine since they re-render on change.
+  // Derive local authors from comments for @mention fallback
+  const localAuthors = useMemo(() => {
+    return extractKnownAuthors(Object.values(comments));
+  }, [comments]);
 
   // Set current user when authenticated
   useEffect(() => {
@@ -118,6 +133,7 @@ function AppContent() {
         name: user.displayName,
         email: user.mail || user.userPrincipalName,
         avatar: user.avatar,
+        provider: user.provider,
       });
     }
   }, [user, setCurrentUser]);
@@ -192,8 +208,8 @@ function AppContent() {
     const file = useFileStore.getState().currentFile;
     const content = getContentForSave();
 
-    // Try to save to OneDrive
-    if (file?.id && file.source === 'onedrive' && isAuthenticated) {
+    // Try to save to OneDrive (only if Microsoft auth and OneDrive capable)
+    if (file?.id && file.source === 'onedrive' && isAuthenticated && capabilities.canUseOneDrive) {
       setIsSaving(true);
       try {
         await saveFile(getToken, file.id, content);
@@ -225,7 +241,7 @@ function AppContent() {
     // No valid file to save to - open Save As dialog
     setFilePickerMode('save');
     setShowFilePicker(true);
-  }, [isAuthenticated, getToken, getContentForSave, localFileHandle]);
+  }, [isAuthenticated, capabilities.canUseOneDrive, getToken, getContentForSave, localFileHandle]);
 
   // Keyboard shortcut: Ctrl+S to save
   useEffect(() => {
@@ -326,6 +342,11 @@ function AppContent() {
     }
   }, []);
 
+  // Open sign-in dialog
+  const handleOpenSignIn = useCallback(() => {
+    setShowSignInDialog(true);
+  }, []);
+
   // Loading state
   if (!isInitialized) {
     return (
@@ -363,8 +384,9 @@ function AppContent() {
         isSaving={isSaving}
         isAuthenticated={isAuthenticated}
         user={user}
-        onSignIn={signIn}
+        onSignIn={handleOpenSignIn}
         onSignOut={signOut}
+        activeProvider={activeProvider}
         currentFile={currentFile}
         isDirty={isDirty}
         hasFileHandle={!!localFileHandle || !!currentFile?.id}
@@ -388,9 +410,11 @@ function AppContent() {
               onCommentResolve={handleCommentResolve}
               onCommentUnresolve={handleCommentUnresolve}
               isAuthenticated={isAuthenticated}
-              onSignIn={signIn}
+              onSignIn={handleOpenSignIn}
               getToken={getToken}
               onCollapse={() => setShowComments(false)}
+              capabilities={capabilities}
+              localAuthors={localAuthors}
             />
           </div>
         ) : (
@@ -416,6 +440,15 @@ function AppContent() {
         isAuthenticated={isAuthenticated}
         currentFile={currentFile}
         initialMode={filePickerMode}
+        capabilities={capabilities}
+      />
+
+      <SignInDialog
+        open={showSignInDialog}
+        onOpenChange={setShowSignInDialog}
+        onSignInWithMicrosoft={signInWithMicrosoft}
+        onSignInWithGoogle={signInWithGoogle}
+        googleEnabled={!!GOOGLE_CLIENT_ID}
       />
     </div>
   );

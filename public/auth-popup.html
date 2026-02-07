@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head><title>Authenticating...</title></head>
+<body>
+<script>
+// Minimal MSAL v5 redirect bridge for popup auth flow.
+// Parses the auth response from the URL hash, broadcasts it to the parent
+// window via BroadcastChannel (keyed by the library state ID), then closes.
+(function() {
+  try {
+    var hash = window.location.hash;
+    var query = window.location.search;
+
+    // Find the part with the auth response (has a 'state' param)
+    var payload = '';
+    if (hash && hash.length > 1) {
+      var h = hash.substring(1);
+      if (new URLSearchParams(h).has('state')) payload = h;
+    }
+    if (!payload && query && query.length > 1) {
+      var q = query.substring(1);
+      if (new URLSearchParams(q).has('state')) payload = q;
+    }
+    if (!payload) return;
+
+    var state = new URLSearchParams(payload).get('state');
+    if (!state) return;
+
+    // Decode library state: format is base64url(json)|userState
+    var parts = state.split('|');
+    var encoded = parts[0].replace(/-/g, '+').replace(/_/g, '/');
+    while (encoded.length % 4) encoded += '=';
+    var libraryState = JSON.parse(atob(encoded));
+    if (!libraryState.id) return;
+
+    // Broadcast response to parent via BroadcastChannel (matches MSAL v5 protocol)
+    var channel = new BroadcastChannel(libraryState.id);
+    channel.postMessage({ v: 1, payload: payload });
+    channel.close();
+
+    // Clean URL and close popup
+    if (window.history.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    window.close();
+  } catch(e) {
+    console.error('Auth popup bridge error:', e);
+    // Show fallback message if something goes wrong
+    document.body.innerHTML = '<p>Authentication error. Please close this window and try again.</p>';
+  }
+})();
+</script>
+</body>
+</html>

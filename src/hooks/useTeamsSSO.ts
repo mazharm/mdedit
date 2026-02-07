@@ -33,7 +33,10 @@ if (!AAD_CLIENT_ID) {
   console.error('MDEdit Teams: VITE_AAD_CLIENT_ID environment variable is required. See .env.example for setup instructions.');
 }
 
-// Scopes needed for the app
+// Minimal scopes for sign-in (works with both org and personal MSA accounts)
+const LOGIN_SCOPES = ['User.Read'];
+
+// Full scopes requested incrementally via acquireTokenSilent/Popup
 const GRAPH_SCOPES = [
   'User.Read',
   'User.ReadBasic.All',
@@ -159,9 +162,19 @@ export function useTeamsSSO() {
         return response.accessToken;
       } catch (error) {
         if (error instanceof InteractionRequiredAuthError) {
-          // Need interactive login
-          console.log('Silent token acquisition failed, interaction required');
-          return null;
+          // Need interactive consent for additional scopes
+          console.log('Silent token acquisition failed, requesting consent via popup');
+          try {
+            const response = await pca.acquireTokenPopup({ scopes: GRAPH_SCOPES, account: accounts[0], redirectUri: `${window.location.origin}/auth-popup.html` });
+            tokenCache.current = {
+              token: response.accessToken,
+              expiresAt: response.expiresOn?.getTime() || Date.now() + 3600000,
+            };
+            return response.accessToken;
+          } catch (popupError) {
+            console.warn('Interactive token acquisition failed:', popupError);
+            return null;
+          }
         }
         throw error;
       }
@@ -221,6 +234,23 @@ export function useTeamsSSO() {
     }
   }, []);
 
+  // Acquire a token with minimal LOGIN_SCOPES (for profile fetch only)
+  const getLoginToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const pca = await getMsalInstance();
+      const accounts = pca.getAllAccounts();
+      if (accounts.length === 0) return null;
+
+      const response = await pca.acquireTokenSilent({
+        scopes: LOGIN_SCOPES,
+        account: accounts[0],
+      });
+      return response.accessToken;
+    } catch {
+      return null;
+    }
+  }, []);
+
   // Initialize authentication
   useEffect(() => {
     async function initAuth() {
@@ -229,14 +259,9 @@ export function useTeamsSSO() {
       try {
         const pca = await getMsalInstance();
 
-        // Handle redirect response (if coming back from login)
-        try {
-          const response = await pca.handleRedirectPromise();
-          if (response?.account) {
-            pca.setActiveAccount(response.account);
-          }
-        } catch {
-          // Ignore redirect errors
+        // Clean up URL hash (e.g. #code=... from redirect flow)
+        if (window.location.hash && window.location.hash.includes('code=')) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
 
         // Check for existing accounts
@@ -244,7 +269,10 @@ export function useTeamsSSO() {
 
         if (accounts.length > 0) {
           pca.setActiveAccount(accounts[0]);
-          const token = await getToken();
+
+          // Acquire with LOGIN_SCOPES only for initial profile fetch
+          // (NOT GRAPH_SCOPES — MSA accounts may not have consented to full scopes yet)
+          const token = await getLoginToken();
 
           if (token) {
             const user = await fetchUserProfile(token);
@@ -277,7 +305,7 @@ export function useTeamsSSO() {
     }
 
     initAuth();
-  }, [getToken, fetchUserProfile]);
+  }, [getLoginToken, fetchUserProfile]);
 
   // Sign in
   const signIn = useCallback(async () => {
@@ -287,10 +315,11 @@ export function useTeamsSSO() {
       const pca = await getMsalInstance();
 
       const loginRequest: PopupRequest = {
-        scopes: GRAPH_SCOPES,
+        scopes: LOGIN_SCOPES,
+        redirectUri: `${window.location.origin}/auth-popup.html`,
       };
 
-      // Try popup login - works both in Teams (NAA) and standalone
+      // Try popup login with minimal scopes, then acquire full scopes silently
       const response = await pca.loginPopup(loginRequest);
 
       if (response.account) {
