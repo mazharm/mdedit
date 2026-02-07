@@ -16,7 +16,6 @@ import {
   ArrowUndo24Regular,
   Send24Regular,
   TaskListSquareLtr24Regular,
-  Person24Regular,
   ChevronRight24Regular,
 } from '@fluentui/react-icons';
 import { useCommentStore, Comment } from '../../stores/commentStore';
@@ -141,11 +140,6 @@ const useStyles = makeStyles({
     textAlign: 'center',
     color: tokens.colorNeutralForeground3,
   },
-  signInPrompt: {
-    padding: '16px',
-    textAlign: 'center',
-    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
-  },
 });
 
 interface CommentSidebarProps {
@@ -154,7 +148,6 @@ interface CommentSidebarProps {
   onCommentResolve?: (id: string) => void;
   onCommentUnresolve?: (id: string) => void;
   isAuthenticated: boolean;
-  onSignIn: () => void;
   getToken: GetTokenFn;
   onCollapse?: () => void;
   capabilities?: AuthCapabilities;
@@ -167,7 +160,6 @@ export function CommentSidebar({
   onCommentResolve,
   onCommentUnresolve,
   isAuthenticated,
-  onSignIn,
   getToken,
   onCollapse,
   capabilities,
@@ -339,15 +331,6 @@ export function CommentSidebar({
           />
         </div>
 
-        {!isAuthenticated && (
-          <div className={styles.signInPrompt}>
-            <Text block>Sign in to @mention colleagues and create tasks</Text>
-            <Button appearance="primary" icon={<Person24Regular />} onClick={onSignIn}>
-              Sign in
-            </Button>
-          </div>
-        )}
-
         <div className={styles.emptyState}>
           <Text size={400}>No comments yet</Text>
           <Text size={200}>Select text and click "Add comment" to start a discussion</Text>
@@ -381,14 +364,6 @@ export function CommentSidebar({
           onChange={(_, data) => setShowResolved(!!data.checked)}
         />
       </div>
-
-      {!isAuthenticated && (
-        <div className={styles.signInPrompt}>
-          <Button appearance="primary" size="small" icon={<Person24Regular />} onClick={onSignIn}>
-            Sign in for @mentions
-          </Button>
-        </div>
-      )}
 
       <div className={styles.list}>
         {filteredComments.map((comment) => (

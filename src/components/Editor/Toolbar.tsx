@@ -125,6 +125,7 @@ interface ToolbarProps {
   onSignIn: () => void;
   onSignOut: () => void;
   activeProvider?: AuthProvider | null;
+  isInTeams?: boolean;
   currentFile: FileInfo | null;
   isDirty: boolean;
   isSaving?: boolean;
@@ -144,6 +145,7 @@ export function Toolbar({
   onSignIn,
   onSignOut,
   activeProvider,
+  isInTeams = false,
   currentFile,
   isDirty,
   isSaving = false,
@@ -508,11 +510,11 @@ export function Toolbar({
               </MenuList>
             </MenuPopover>
           </Menu>
-        ) : (
+        ) : !isInTeams ? (
           <Tooltip content="Sign in" relationship="label">
             <Button appearance="primary" icon={<Person24Regular />} onClick={onSignIn} />
           </Tooltip>
-        )}
+        ) : null}
       </div>
 
       {/* Link Dialog */}

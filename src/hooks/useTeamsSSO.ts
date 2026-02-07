@@ -264,6 +264,30 @@ export function useTeamsSSO() {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
 
+        // In Teams, try silent SSO first (user is already signed into Teams)
+        if (isRunningInTeams) {
+          try {
+            const ssoResponse = await pca.ssoSilent({ scopes: LOGIN_SCOPES });
+            if (ssoResponse?.account) {
+              pca.setActiveAccount(ssoResponse.account);
+              tokenCache.current = {
+                token: ssoResponse.accessToken,
+                expiresAt: ssoResponse.expiresOn?.getTime() || Date.now() + 3600000,
+              };
+              const user = await fetchUserProfile(ssoResponse.accessToken);
+              setState({
+                user,
+                isAuthenticated: !!user,
+                isLoading: false,
+                error: null,
+              });
+              return;
+            }
+          } catch {
+            console.log('Teams SSO silent failed, checking cached accounts...');
+          }
+        }
+
         // Check for existing accounts
         const accounts = pca.getAllAccounts();
 
@@ -314,32 +338,72 @@ export function useTeamsSSO() {
     try {
       const pca = await getMsalInstance();
 
-      const loginRequest: PopupRequest = {
-        scopes: LOGIN_SCOPES,
-        redirectUri: `${window.location.origin}/auth-popup.html`,
-      };
-
-      // Try popup login with minimal scopes, then acquire full scopes silently
-      const response = await pca.loginPopup(loginRequest);
-
-      if (response.account) {
-        pca.setActiveAccount(response.account);
-
-        // Cache the token
-        tokenCache.current = {
-          token: response.accessToken,
-          expiresAt: response.expiresOn?.getTime() || Date.now() + 3600000,
+      if (isRunningInTeams) {
+        // In Teams: use ssoSilent (NAA) — no popup needed, Teams host handles auth
+        try {
+          const response = await pca.ssoSilent({ scopes: LOGIN_SCOPES });
+          if (response?.account) {
+            pca.setActiveAccount(response.account);
+            tokenCache.current = {
+              token: response.accessToken,
+              expiresAt: response.expiresOn?.getTime() || Date.now() + 3600000,
+            };
+            const user = await fetchUserProfile(response.accessToken);
+            setState({
+              user,
+              isAuthenticated: !!user,
+              isLoading: false,
+              error: null,
+            });
+            return;
+          }
+        } catch (ssoError) {
+          // If ssoSilent fails, try loginPopup — NAA routes this through Teams host
+          console.log('Teams ssoSilent failed, trying loginPopup via NAA...');
+          const response = await pca.loginPopup({ scopes: LOGIN_SCOPES });
+          if (response?.account) {
+            pca.setActiveAccount(response.account);
+            tokenCache.current = {
+              token: response.accessToken,
+              expiresAt: response.expiresOn?.getTime() || Date.now() + 3600000,
+            };
+            const user = await fetchUserProfile(response.accessToken);
+            setState({
+              user,
+              isAuthenticated: !!user,
+              isLoading: false,
+              error: null,
+            });
+            return;
+          }
+        }
+      } else {
+        // Standalone browser: use popup with redirect bridge
+        const loginRequest: PopupRequest = {
+          scopes: LOGIN_SCOPES,
+          redirectUri: `${window.location.origin}/auth-popup.html`,
         };
 
-        const user = await fetchUserProfile(response.accessToken);
+        const response = await pca.loginPopup(loginRequest);
 
-        setState({
-          user,
-          isAuthenticated: !!user,
-          isLoading: false,
-          error: null,
-        });
+        if (response.account) {
+          pca.setActiveAccount(response.account);
+          tokenCache.current = {
+            token: response.accessToken,
+            expiresAt: response.expiresOn?.getTime() || Date.now() + 3600000,
+          };
+          const user = await fetchUserProfile(response.accessToken);
+          setState({
+            user,
+            isAuthenticated: !!user,
+            isLoading: false,
+            error: null,
+          });
+          return;
+        }
       }
+
+      setState((prev) => ({ ...prev, isLoading: false }));
     } catch (error) {
       console.error('Sign in failed:', error);
       setState((prev) => ({
@@ -379,5 +443,6 @@ export function useTeamsSSO() {
     getToken,
     signIn,
     signOut,
+    isInTeams: isRunningInTeams,
   };
 }

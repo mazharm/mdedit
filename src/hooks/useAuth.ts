@@ -98,6 +98,7 @@ export function useAuth() {
     isLoading,
     activeProvider,
     capabilities,
+    isInTeams: microsoft.isInTeams,
     signInWithMicrosoft,
     signInWithGoogle,
     signOut,

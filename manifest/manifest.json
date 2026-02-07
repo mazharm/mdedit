@@ -6,9 +6,9 @@
   "packageName": "com.mdedit.teams",
   "developer": {
     "name": "MDEdit",
-    "websiteUrl": "https://localhost:3000",
-    "privacyUrl": "https://localhost:3000/privacy",
-    "termsOfUseUrl": "https://localhost:3000/terms"
+    "websiteUrl": "https://localhost:3002",
+    "privacyUrl": "https://localhost:3002/privacy",
+    "termsOfUseUrl": "https://localhost:3002/terms"
   },
   "icons": {
     "color": "color.png",
@@ -27,8 +27,8 @@
     {
       "entityId": "mdedit",
       "name": "Editor",
-      "contentUrl": "https://localhost:3000",
-      "websiteUrl": "https://localhost:3000",
+      "contentUrl": "https://localhost:3002",
+      "websiteUrl": "https://localhost:3002",
       "scopes": ["personal"]
     }
   ],

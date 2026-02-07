@@ -98,6 +98,7 @@ function AppContent() {
     isAuthenticated,
     capabilities,
     activeProvider,
+    isInTeams,
     getToken,
     signInWithMicrosoft,
     signInWithGoogle,
@@ -387,6 +388,7 @@ function AppContent() {
         onSignIn={handleOpenSignIn}
         onSignOut={signOut}
         activeProvider={activeProvider}
+        isInTeams={isInTeams}
         currentFile={currentFile}
         isDirty={isDirty}
         hasFileHandle={!!localFileHandle || !!currentFile?.id}
@@ -410,7 +412,6 @@ function AppContent() {
               onCommentResolve={handleCommentResolve}
               onCommentUnresolve={handleCommentUnresolve}
               isAuthenticated={isAuthenticated}
-              onSignIn={handleOpenSignIn}
               getToken={getToken}
               onCollapse={() => setShowComments(false)}
               capabilities={capabilities}
@@ -448,7 +449,7 @@ function AppContent() {
         onOpenChange={setShowSignInDialog}
         onSignInWithMicrosoft={signInWithMicrosoft}
         onSignInWithGoogle={signInWithGoogle}
-        googleEnabled={!!GOOGLE_CLIENT_ID}
+        googleEnabled={!!GOOGLE_CLIENT_ID && !isInTeams}
       />
     </div>
   );
