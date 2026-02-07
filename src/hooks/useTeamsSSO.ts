@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { app } from '@microsoft/teams-js';
+import { app, authentication } from '@microsoft/teams-js';
 import {
   PublicClientApplication,
   SilentRequest,
@@ -67,11 +67,12 @@ async function getMsalInstance(): Promise<IPublicClientApplication> {
   if (!msalInitPromise) {
     msalInitPromise = (async () => {
       isRunningInTeams = await checkIfInTeams();
+      console.log('[MDEdit Auth] isRunningInTeams:', isRunningInTeams);
 
       if (isRunningInTeams) {
         // Use Nested App Authentication for Teams
         // NAA allows the app to get tokens without popups by leveraging the Teams host
-        console.log('Running in Teams - using Nested App Authentication');
+        console.log('[MDEdit Auth] Creating NAA MSAL instance...');
         try {
           msalInstance = await createNestablePublicClientApplication({
             auth: {
@@ -82,8 +83,9 @@ async function getMsalInstance(): Promise<IPublicClientApplication> {
               cacheLocation: BrowserCacheLocation.LocalStorage,
             },
           });
+          console.log('[MDEdit Auth] NAA MSAL instance created successfully');
         } catch (error) {
-          console.warn('NAA initialization failed, falling back to standard MSAL:', error);
+          console.warn('[MDEdit Auth] NAA initialization failed, falling back to standard MSAL:', error);
           // Fall back to standard MSAL if NAA is not available
           msalInstance = new PublicClientApplication({
             auth: {
@@ -264,9 +266,43 @@ export function useTeamsSSO() {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
 
-        // In Teams, try silent SSO first (user is already signed into Teams)
+        // In Teams, try multiple auth strategies in order
+        console.log('[MDEdit Auth] initAuth: isRunningInTeams =', isRunningInTeams);
         if (isRunningInTeams) {
+          // Strategy 1: Teams SDK getAuthToken — gets SSO token from Teams host.
+          // Works without admin consent if Teams client IDs are pre-authorized.
+          // Token is a JWT with user identity claims (oid, name, preferred_username).
           try {
+            console.log('[MDEdit Auth] Trying Teams SDK getAuthToken...');
+            const ssoToken = await authentication.getAuthToken();
+            console.log('[MDEdit Auth] getAuthToken succeeded');
+
+            // Decode JWT payload to extract user identity
+            const parts = ssoToken.split('.');
+            const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(atob(base64));
+
+            const user: User = {
+              id: payload.oid || payload.sub || 'teams-user',
+              displayName: payload.name || 'Teams User',
+              mail: payload.preferred_username || null,
+              userPrincipalName: payload.preferred_username || '',
+            };
+
+            setState({
+              user,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+            return;
+          } catch (authTokenError) {
+            console.warn('[MDEdit Auth] Teams getAuthToken failed:', authTokenError);
+          }
+
+          // Strategy 2: MSAL NAA ssoSilent
+          try {
+            console.log('[MDEdit Auth] Trying ssoSilent...');
             const ssoResponse = await pca.ssoSilent({ scopes: LOGIN_SCOPES });
             if (ssoResponse?.account) {
               pca.setActiveAccount(ssoResponse.account);
@@ -283,13 +319,37 @@ export function useTeamsSSO() {
               });
               return;
             }
-          } catch {
-            console.log('Teams SSO silent failed, checking cached accounts...');
+          } catch (ssoError) {
+            console.warn('[MDEdit Auth] ssoSilent failed:', ssoError);
+          }
+
+          // Strategy 3: MSAL NAA loginPopup (routed through Teams host)
+          try {
+            console.log('[MDEdit Auth] Trying loginPopup via NAA...');
+            const popupResponse = await pca.loginPopup({ scopes: LOGIN_SCOPES });
+            if (popupResponse?.account) {
+              pca.setActiveAccount(popupResponse.account);
+              tokenCache.current = {
+                token: popupResponse.accessToken,
+                expiresAt: popupResponse.expiresOn?.getTime() || Date.now() + 3600000,
+              };
+              const user = await fetchUserProfile(popupResponse.accessToken);
+              setState({
+                user,
+                isAuthenticated: !!user,
+                isLoading: false,
+                error: null,
+              });
+              return;
+            }
+          } catch (popupError) {
+            console.error('[MDEdit Auth] loginPopup also failed:', popupError);
           }
         }
 
-        // Check for existing accounts
+        // Check for existing accounts (standalone browser path)
         const accounts = pca.getAllAccounts();
+        console.log('[MDEdit Auth] Cached accounts:', accounts.length);
 
         if (accounts.length > 0) {
           pca.setActiveAccount(accounts[0]);
@@ -311,6 +371,7 @@ export function useTeamsSSO() {
         }
 
         // No authenticated user
+        console.log('[MDEdit Auth] No authenticated user found');
         setState({
           user: null,
           isAuthenticated: false,

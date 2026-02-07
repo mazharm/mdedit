@@ -33,5 +33,9 @@
     }
   ],
   "permissions": ["identity"],
-  "validDomains": ["*.localhost"]
+  "validDomains": ["*.localhost"],
+  "webApplicationInfo": {
+    "id": "YOUR-AAD-CLIENT-ID-HERE",
+    "resource": "api://localhost:3002/YOUR-AAD-CLIENT-ID-HERE"
+  }
 }
