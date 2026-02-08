@@ -2,11 +2,11 @@
 
 ## 1\. System Overview
 
-MDEdit Teams is a Microsoft Teams personal tab application that provides a full-featured WYSIWYG markdown editor with commenting, OneDrive integration, and Mermaid diagram support. It is a 100% client-side Single Page Application (SPA) with no backend server, using Nested App Authentication (NAA) to access Microsoft Graph APIs.
+MDEdit Teams is a Microsoft Teams personal tab application that provides a full-featured WYSIWYG markdown editor with commenting, OneDrive integration, and Mermaid diagram support. It is a 100% client-side Single Page Application (SPA) with no backend server, using Nested App Authentication (NAA) to access Microsoft Graph APIs. It also supports Google OAuth for identity outside of Teams.
 
 ### Key Design Decisions
 
-<table style="min-width: 75px;"><colgroup><col style="min-width: 25px;"><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p>Decision</p></th><th colspan="1" rowspan="1"><p>Choice</p></th><th colspan="1" rowspan="1"><p>Rationale</p></th></tr><tr><td colspan="1" rowspan="1"><p>Architecture</p></td><td colspan="1" rowspan="1"><p>Client-side SPA</p></td><td colspan="1" rowspan="1"><p>No server infrastructure needed; deploys as static files</p></td></tr><tr><td colspan="1" rowspan="1"><p>Auth</p></td><td colspan="1" rowspan="1"><p>Nested App Authentication (NAA)</p></td><td colspan="1" rowspan="1"><p>Seamless SSO inside Teams; no token exchange endpoint</p></td></tr><tr><td colspan="1" rowspan="1"><p>Rich Text</p></td><td colspan="1" rowspan="1"><p>TipTap (ProseMirror)</p></td><td colspan="1" rowspan="1"><p>Extensible, schema-based editor with React integration</p></td></tr><tr><td colspan="1" rowspan="1"><p>Raw Markdown</p></td><td colspan="1" rowspan="1"><p>CodeMirror 6</p></td><td colspan="1" rowspan="1"><p>Best-in-class code editor with language support</p></td></tr><tr><td colspan="1" rowspan="1"><p>State</p></td><td colspan="1" rowspan="1"><p>Zustand</p></td><td colspan="1" rowspan="1"><p>Lightweight, minimal boilerplate vs Redux</p></td></tr><tr><td colspan="1" rowspan="1"><p>UI Framework</p></td><td colspan="1" rowspan="1"><p>Fluent UI v9</p></td><td colspan="1" rowspan="1"><p>Native Teams look-and-feel</p></td></tr><tr><td colspan="1" rowspan="1"><p>Build</p></td><td colspan="1" rowspan="1"><p>Vite</p></td><td colspan="1" rowspan="1"><p>Fast HMR, optimized builds, ESM-native</p></td></tr><tr><td colspan="1" rowspan="1"><p>Comment Storage</p></td><td colspan="1" rowspan="1"><p>Embedded in Markdown</p></td><td colspan="1" rowspan="1"><p>Portable; no external database required</p></td></tr></tbody></table>
+<table style="min-width: 75px;"><colgroup><col style="min-width: 25px;"><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p>Decision</p></th><th colspan="1" rowspan="1"><p>Choice</p></th><th colspan="1" rowspan="1"><p>Rationale</p></th></tr><tr><td colspan="1" rowspan="1"><p>Architecture</p></td><td colspan="1" rowspan="1"><p>Client-side SPA</p></td><td colspan="1" rowspan="1"><p>No server infrastructure needed; deploys as static files</p></td></tr><tr><td colspan="1" rowspan="1"><p>Auth</p></td><td colspan="1" rowspan="1"><p>Nested App Authentication (NAA)</p></td><td colspan="1" rowspan="1"><p>Seamless SSO inside Teams; no token exchange endpoint</p></td></tr><tr><td colspan="1" rowspan="1"><p>Secondary Auth</p></td><td colspan="1" rowspan="1"><p>Google Identity Services</p></td><td colspan="1" rowspan="1"><p>Alternative sign-in for non-Teams/consumer use</p></td></tr><tr><td colspan="1" rowspan="1"><p>Rich Text</p></td><td colspan="1" rowspan="1"><p>TipTap (ProseMirror)</p></td><td colspan="1" rowspan="1"><p>Extensible, schema-based editor with React integration</p></td></tr><tr><td colspan="1" rowspan="1"><p>Raw Markdown</p></td><td colspan="1" rowspan="1"><p>CodeMirror 6</p></td><td colspan="1" rowspan="1"><p>Best-in-class code editor with language support</p></td></tr><tr><td colspan="1" rowspan="1"><p>State</p></td><td colspan="1" rowspan="1"><p>Zustand</p></td><td colspan="1" rowspan="1"><p>Lightweight, minimal boilerplate vs Redux</p></td></tr><tr><td colspan="1" rowspan="1"><p>UI Framework</p></td><td colspan="1" rowspan="1"><p>Fluent UI v9</p></td><td colspan="1" rowspan="1"><p>Native Teams look-and-feel</p></td></tr><tr><td colspan="1" rowspan="1"><p>Build</p></td><td colspan="1" rowspan="1"><p>Vite</p></td><td colspan="1" rowspan="1"><p>Fast HMR, optimized builds, ESM-native</p></td></tr><tr><td colspan="1" rowspan="1"><p>Comment Storage</p></td><td colspan="1" rowspan="1"><p>Embedded in Markdown</p></td><td colspan="1" rowspan="1"><p>Portable; no external database required</p></td></tr></tbody></table>
 
 ---
 
@@ -19,7 +19,7 @@ graph TB
             UI["UI Layer<br/>Toolbar / Editors / Sidebar"]
             STATE["State Layer<br/>Zustand Stores"]
             SVC["Service Layer<br/>Graph API Clients"]
-            AUTH["Auth Layer<br/>MSAL + Teams SSO"]
+            AUTH["Auth Layer<br/>MSAL + Teams SSO + Google"]
         end
     end
 
@@ -27,6 +27,7 @@ graph TB
     UI --> SVC
     SVC --> AUTH
     AUTH --> AAD["Azure AD<br/>OAuth 2.0 + PKCE"]
+    AUTH --> GOOGLE["Google Identity<br/>Services"]
     SVC --> GRAPH["Microsoft Graph API"]
     GRAPH --> OD["OneDrive<br/>Files.ReadWrite"]
     GRAPH --> PPL["People API<br/>People.Read"]
@@ -55,15 +56,17 @@ graph TD
     FP["FilePicker<br/>(Dialog wrapper)"]
     ODP["OneDrivePicker<br/>(Folder browser)"]
     LFP["LocalFilePicker<br/>(FSA + drag-drop)"]
-    MP["MentionPicker<br/>(@mention autocomplete)"]
+    MP["MentionPicker<br/>(@mention with MRU)"]
     CM["CommentMark<br/>(TipTap Mark extension)"]
     MB["MermaidBlock<br/>(TipTap Node extension)"]
+    SD["SignInDialog<br/>(Multi-provider sign-in)"]
 
     App --> AppContent
     AppContent --> TB
     AppContent --> SP
     AppContent --> CS
     AppContent --> FP
+    AppContent --> SD
     SP --> WE
     SP --> ME
     WE --> CM
@@ -71,6 +74,16 @@ graph TD
     CS --> MP
     FP --> ODP
     FP --> LFP
+
+    subgraph "Auth Hooks"
+        UA["useAuth<br/>(unified wrapper)"]
+        UTS["useTeamsSSO<br/>(MSAL + NAA)"]
+        UGA["useGoogleAuth<br/>(Google Identity)"]
+        UA --> UTS
+        UA --> UGA
+    end
+
+    AppContent --> UA
 
     style App fill:#e8eaf6
     style AppContent fill:#e8eaf6
@@ -82,6 +95,7 @@ graph TD
     style FP fill:#ffccbc
     style CM fill:#d1c4e9
     style MB fill:#d1c4e9
+    style SD fill:#fce4ec
 ```
 
 ---
@@ -101,6 +115,11 @@ graph LR
         SC["showComments: boolean"]
         FPM["filePickerMode: Mode"]
         LFH["localFileHandle: FSAFileHandle"]
+        FCI["focusCommentId: string | null"]
+    end
+
+    subgraph "Module-Level State"
+        MRU["recentPeople: Author[]<br/>(MRU cache in MentionPicker)"]
     end
 
     subgraph "Editor Refs (imperative)"
@@ -136,6 +155,7 @@ sequenceDiagram
     participant MSAL as MSAL.js
     participant AAD as Azure AD
     participant Graph as Graph API
+    participant GIS as Google Identity
 
     Note over App: App Initialization
     App->>SDK: app.initialize()
@@ -143,41 +163,59 @@ sequenceDiagram
     App->>App: checkIfInTeams()
 
     alt Running in Teams
+        Note over App,SDK: Strategy 1: Teams getAuthToken()
+        App->>SDK: authentication.getAuthToken()
+        SDK-->>App: ID Token (JWT)
+        App->>App: Decode JWT → user identity<br/>(name, email, oid)
+
+        Note over App,MSAL: Strategy 2: Background MSAL
         App->>MSAL: createNestablePublicClientApplication()
-        Note over MSAL: Teams acts as auth broker (NAA)
+        App->>MSAL: ssoSilent() for Graph tokens
+        alt ssoSilent succeeds
+            MSAL-->>App: Access Token
+        else ssoSilent fails
+            App->>MSAL: loginPopup(scopes)
+            MSAL->>AAD: OAuth 2.0 + PKCE
+            AAD-->>MSAL: Tokens
+            MSAL-->>App: Access Token
+        end
     else Standalone Browser
         App->>MSAL: new PublicClientApplication()
-        MSAL->>MSAL: initialize()
+        App->>MSAL: handleRedirectPromise()
+        App->>MSAL: getAllAccounts()
+
+        alt Has cached account
+            App->>MSAL: acquireTokenSilent()
+            MSAL-->>App: Access Token
+        else No cached account (Microsoft)
+            U->>App: Click "Sign In with Microsoft"
+            App->>MSAL: loginPopup(scopes)
+            MSAL->>AAD: OAuth 2.0 + PKCE
+            AAD-->>U: Consent prompt
+            U-->>AAD: Approve
+            AAD-->>MSAL: Auth code + tokens
+            MSAL-->>App: Access Token + Account
+        else No cached account (Google)
+            U->>App: Click "Sign In with Google"
+            App->>GIS: google.accounts.id.prompt()
+            GIS-->>U: Google consent
+            U-->>GIS: Approve
+            GIS-->>App: JWT credential
+            App->>App: Decode JWT → user identity
+            Note over App: Google provides identity only.<br/>No Graph API access.
+        end
     end
 
-    App->>MSAL: handleRedirectPromise()
-    App->>MSAL: getAllAccounts()
-
-    alt Has cached account
-        App->>MSAL: acquireTokenSilent()
-        MSAL-->>App: Access Token
-        App->>Graph: GET /me (with Bearer token)
-        Graph-->>App: User Profile
-        App->>Graph: GET /me/photo/$value
-        Graph-->>App: User Avatar
-    else No cached account
-        U->>App: Click "Sign In"
-        App->>MSAL: loginPopup(scopes)
-        MSAL->>AAD: OAuth 2.0 + PKCE
-        AAD-->>U: Consent prompt
-        U-->>AAD: Approve
-        AAD-->>MSAL: Auth code + tokens
-        MSAL-->>App: Access Token + Account
-        App->>Graph: GET /me
-        Graph-->>App: User Profile
-    end
-
-    Note over App: Subsequent API Calls
-    App->>MSAL: acquireTokenSilent()
-    Note over MSAL: Returns cached token<br/>or silently refreshes
-    MSAL-->>App: Access Token
-    App->>Graph: API call with Bearer token
+    Note over App: Microsoft auth provides Graph access
+    App->>Graph: GET /me (with Bearer token)
+    Graph-->>App: User Profile
 ```
+
+### Auth Provider Priority
+
+1. **Microsoft (Teams SSO)**: Preferred when running inside Teams. Uses `getAuthToken()` for immediate identity, then establishes MSAL session for Graph API access.
+2. **Microsoft (MSAL standalone)**: Used in standalone browser with full Graph API access.
+3. **Google**: Secondary provider for identity only. Users get comment authorship and local file editing, but no OneDrive/To-Do integration.
 
 ---
 
@@ -234,7 +272,7 @@ stateDiagram-v2
         EmptyComment --> WithText: User types comment text
         WithText --> WithMention: @mention added
         WithText --> WithTask: Assign task
-        WithMention --> WithTask: Assign task
+        WithMention --> WithTask: Assign from mention
     }
 
     Created --> InEditor: CommentMark applied<br/>to selection range
@@ -243,9 +281,12 @@ stateDiagram-v2
         [*] --> Highlighted: Yellow highlight
         Highlighted --> Active: User clicks highlight
         Active --> Highlighted: 2s timeout
+        Highlighted --> AutoFocused: focusCommentId set
+        AutoFocused --> Highlighted: After user interaction
     }
 
     Created --> HasReplies: Other users reply
+    HasReplies --> Resolved: Reply & resolve
     HasReplies --> Resolved: Mark as resolved
     Resolved --> Reopened: Unresolve
     Reopened --> Resolved: Resolve again
@@ -268,7 +309,60 @@ stateDiagram-v2
 
 ---
 
-## 8\. File Operations Flow
+## 8\. @Mention System
+
+```mermaid
+flowchart TD
+    TRIGGER["User types '@' in comment<br/>or reply text field"]
+    SHOW["Show MentionPicker dropdown"]
+
+    subgraph "Dropdown Sources"
+        MRU_LIST["MRU: Recently mentioned people<br/>(module-level cache)"]
+        DOC_AUTHORS["Document authors<br/>(from comment store)"]
+        MERGED["Merge & deduplicate"]
+
+        MRU_LIST --> MERGED
+        DOC_AUTHORS --> MERGED
+    end
+
+    TRIGGER --> SHOW
+    SHOW --> MERGED
+    MERGED --> DISPLAY["Display filtered list<br/>+ 'Search people...' option"]
+
+    subgraph "User Interaction"
+        TYPE_FILTER["User types to filter"]
+        ARROW_NAV["Arrow keys to navigate"]
+        ENTER_SELECT["Enter to select person"]
+        SEARCH_CLICK["Click 'Search people...'"]
+    end
+
+    DISPLAY --> TYPE_FILTER
+    DISPLAY --> ARROW_NAV
+    DISPLAY --> ENTER_SELECT
+    DISPLAY --> SEARCH_CLICK
+
+    ENTER_SELECT --> ADD_MENTION["Add @mention to text<br/>Update MRU cache"]
+
+    subgraph "Search People"
+        TEAMS_CHECK{"Running in Teams?"}
+        TEAMS_PICKER["Teams native<br/>people picker<br/>(selectPeople API)"]
+        FALLBACK_DIALOG["Fallback dialog<br/>(name + email input)"]
+
+        TEAMS_CHECK -->|Yes| TEAMS_PICKER
+        TEAMS_CHECK -->|No| FALLBACK_DIALOG
+        TEAMS_PICKER --> ADD_MENTION
+        FALLBACK_DIALOG --> ADD_MENTION
+    end
+
+    SEARCH_CLICK --> TEAMS_CHECK
+
+    style TRIGGER fill:#e3f2fd
+    style ADD_MENTION fill:#c8e6c9
+```
+
+---
+
+## 9\. File Operations Flow
 
 ```mermaid
 flowchart TD
@@ -315,7 +409,7 @@ flowchart TD
 
 ---
 
-## 9\. Comment Storage Format
+## 10\. Comment Storage Format
 
 Comments are stored directly within the markdown file using two mechanisms:
 
@@ -374,7 +468,7 @@ graph LR
 
 ---
 
-## 10\. Microsoft Graph API Integration
+## 11\. Microsoft Graph API Integration
 
 ```mermaid
 graph TD
@@ -382,6 +476,7 @@ graph TD
         GS["graphService.ts<br/>(Generic HTTP client)"]
         ODS["oneDriveService.ts<br/>(File operations)"]
         PS["peopleService.ts<br/>(User search)"]
+        LPS["localPeopleService.ts<br/>(Fallback people search)"]
         TS["todoService.ts<br/>(Task management)"]
     end
 
@@ -418,12 +513,13 @@ graph TD
     style GS fill:#e8f5e9
     style ODS fill:#e3f2fd
     style PS fill:#fff3e0
+    style LPS fill:#fff3e0
     style TS fill:#fce4ec
 ```
 
 ---
 
-## 11\. TipTap Extension Architecture
+## 12\. TipTap Extension Architecture
 
 ```mermaid
 classDiagram
@@ -475,13 +571,13 @@ classDiagram
 
 ---
 
-## 12\. Deployment Architecture
+## 13\. Deployment Architecture
 
 ```mermaid
 graph TB
     subgraph "Development"
         DEV["Developer Machine"]
-        DEV --> VITE["Vite Dev Server<br/>localhost:3000<br/>HTTPS with self-signed cert"]
+        DEV --> VITE["Vite Dev Server<br/>localhost:3002<br/>HTTPS with self-signed cert"]
     end
 
     subgraph "Build & Deploy"
@@ -492,7 +588,11 @@ graph TB
     end
 
     subgraph "Azure AD"
-        AAD_REG["App Registration<br/>- Client ID<br/>- Redirect URI<br/>- API Permissions"]
+        AAD_REG["App Registration<br/>- Client ID<br/>- Redirect URI<br/>- API Permissions<br/>- Expose API (NAA)"]
+    end
+
+    subgraph "Google OAuth"
+        GOOGLE_REG["OAuth Client<br/>- Client ID<br/>- Authorized Origins"]
     end
 
     subgraph "Teams App Package"
@@ -504,6 +604,7 @@ graph TB
     end
 
     AZURE --> AAD_REG
+    AZURE --> GOOGLE_REG
     AZURE --> MANIFEST
 
     subgraph "Runtime"
@@ -515,12 +616,13 @@ graph TB
 
     style AZURE fill:#e3f2fd
     style AAD_REG fill:#fce4ec
+    style GOOGLE_REG fill:#fff3e0
     style TEAMS fill:#e8eaf6
 ```
 
 ---
 
-## 13\. Security Model
+## 14\. Security Model
 
 ```mermaid
 graph TD
@@ -528,6 +630,7 @@ graph TD
         OAUTH["OAuth 2.0 + PKCE<br/>(No client secrets)"]
         NAA["Nested App Auth<br/>(Teams as broker)"]
         SCOPES["Delegated Scopes<br/>(User-consented only)"]
+        GOOGLE_JWT["Google JWT<br/>(Client-side decode only)"]
     end
 
     subgraph "Content Security"
@@ -535,6 +638,7 @@ graph TD
         SVG_SAN["SVG Sanitization<br/>(Mermaid output)"]
         LINK_REL["Link Security<br/>rel=noopener noreferrer"]
         MERMAID_STRICT["Mermaid securityLevel: strict"]
+        URL_PROTO["URL Protocol Validation<br/>(http/https only in links/images)"]
     end
 
     subgraph "Data Security"
@@ -544,19 +648,22 @@ graph TD
     end
 
     subgraph "Input Validation"
-        COMMENT_ESC["Comment ID escaping"]
-        ODATA_ESC["OData query escaping"]
+        COMMENT_ESC["Comment ID escaping<br/>(escapeHtmlAttr)"]
+        ODATA_ESC["OData query escaping<br/>(sanitizeSearchQuery)"]
         URL_ENC["URL parameter encoding"]
+        SELECTOR_ESC["CSS.escape for selectors"]
+        ONEDRIVE_ID["OneDrive ID validation"]
     end
 
     style OAUTH fill:#c8e6c9
     style SVG_SAN fill:#c8e6c9
     style LOCAL_ONLY fill:#c8e6c9
+    style GOOGLE_JWT fill:#c8e6c9
 ```
 
 ---
 
-## 14\. Module Dependency Graph
+## 15\. Module Dependency Graph
 
 ```mermaid
 graph TD
@@ -564,7 +671,9 @@ graph TD
     INDEX --> EB["ErrorBoundary.tsx"]
 
     APP --> TC["useTeamsContext"]
-    APP --> TS["useTeamsSSO"]
+    APP --> UA["useAuth"]
+    UA --> TS["useTeamsSSO"]
+    UA --> GA["useGoogleAuth"]
     APP --> TB["Toolbar"]
     APP --> SP["SplitPane"]
     APP --> WE["WysiwygEditor"]
@@ -576,6 +685,8 @@ graph TD
     APP --> MU["markdown utils"]
     APP --> ODS["oneDriveService"]
 
+    GA --> GAUTH["googleAuth.ts"]
+
     WE --> CM_EXT["CommentMark"]
     WE --> MM_EXT["MermaidBlock"]
     WE --> MU
@@ -584,6 +695,7 @@ graph TD
     CSB --> MP["MentionPicker"]
     CSB --> TODO["todoService"]
     CSB --> PS["peopleService"]
+    CSB --> LPS["localPeopleService"]
 
     FP --> ODP["OneDrivePicker"]
     FP --> LFP["LocalFilePicker"]
@@ -607,50 +719,6 @@ graph TD
 
 ---
 
-## 15\. Technology Stack Summary
+## 16\. Technology Stack Summary
 
-<table style="min-width: 75px;"><colgroup><col style="min-width: 25px;"><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p>Layer</p></th><th colspan="1" rowspan="1"><p>Technology</p></th><th colspan="1" rowspan="1"><p>Version</p></th></tr><tr><td colspan="1" rowspan="1"><p>UI Framework</p></td><td colspan="1" rowspan="1"><p>React</p></td><td colspan="1" rowspan="1"><p>18.2</p></td></tr><tr><td colspan="1" rowspan="1"><p>Type System</p></td><td colspan="1" rowspan="1"><p>TypeScript</p></td><td colspan="1" rowspan="1"><p>5.4</p></td></tr><tr><td colspan="1" rowspan="1"><p>Design System</p></td><td colspan="1" rowspan="1"><p>Fluent UI v9</p></td><td colspan="1" rowspan="1"><p>9.46</p></td></tr><tr><td colspan="1" rowspan="1"><p>WYSIWYG Editor</p></td><td colspan="1" rowspan="1"><p>TipTap</p></td><td colspan="1" rowspan="1"><p>2.2</p></td></tr><tr><td colspan="1" rowspan="1"><p>Code Editor</p></td><td colspan="1" rowspan="1"><p>CodeMirror</p></td><td colspan="1" rowspan="1"><p>6.0</p></td></tr><tr><td colspan="1" rowspan="1"><p>Markdown Parser</p></td><td colspan="1" rowspan="1"><p>Mar<span data-comment-id="4add2172-ae0b-405d-b796-7855bde2586d" class="comment-highlight">ke</span>d</p></td><td colspan="1" rowspan="1"><p>12.0</p></td></tr><tr><td colspan="1" rowspan="1"><p>HTML-to-Markdown</p></td><td colspan="1" rowspan="1"><p>Turndown + GFM</p></td><td colspan="1" rowspan="1"><p>7.1</p></td></tr><tr><td colspan="1" rowspan="1"><p>Diagrams</p></td><td colspan="1" rowspan="1"><p>Mermaid</p></td><td colspan="1" rowspan="1"><p>11.12</p></td></tr><tr><td colspan="1" rowspan="1"><p>State Management</p></td><td colspan="1" rowspan="1"><p>Zustand</p></td><td colspan="1" rowspan="1"><p>4.5</p></td></tr><tr><td colspan="1" rowspan="1"><p>Authentication</p></td><td colspan="1" rowspan="1"><p>MSAL Browser</p></td><td colspan="1" rowspan="1"><p>5.1</p></td></tr><tr><td colspan="1" rowspan="1"><p>Teams SDK</p></td><td colspan="1" rowspan="1"><p>@microsoft/teams-js</p></td><td colspan="1" rowspan="1"><p>2.19</p></td></tr><tr><td colspan="1" rowspan="1"><p>Build Tool</p></td><td colspan="1" rowspan="1"><p>Vite</p></td><td colspan="1" rowspan="1"><p>5.1</p></td></tr><tr><td colspan="1" rowspan="1"><p>Linting</p></td><td colspan="1" rowspan="1"><p>ESLint</p></td><td colspan="1" rowspan="1"><p>9.0</p></td></tr></tbody></table>
-
-<!--MDEDIT_COMMENTS_DATA
-[
-  {
-    "id": "uuid-1",
-    "text": "This needs revision",
-    "author": {
-      "id": "user-id",
-      "name": "John",
-      "email": "john@example.com"
-    },
-    "createdAt": "2024-01-15T10:30:00.000Z",
-    "updatedAt": "2024-01-15T10:30:00.000Z",
-    "resolved": false,
-    "replies": [],
-    "quotedText": "highlighted text",
-    "mentions": [],
-    "assignedTo": null,
-    "taskDueDate": null,
-    "taskCompleted": false,
-    "resolvedAt": null
-  },
-  {
-    "id": "4add2172-ae0b-405d-b796-7855bde2586d",
-    "text": "testing 12345",
-    "author": {
-      "id": "anonymous",
-      "name": "Anonymous",
-      "email": ""
-    },
-    "createdAt": "2026-02-06T18:29:52.286Z",
-    "updatedAt": "2026-02-06T18:30:01.782Z",
-    "resolved": false,
-    "resolvedBy": null,
-    "resolvedAt": null,
-    "replies": [],
-    "assignedTo": null,
-    "taskDueDate": null,
-    "taskCompleted": false,
-    "mentions": [],
-    "quotedText": "ke"
-  }
-]
-MDEDIT_COMMENTS_DATA-->
+<table style="min-width: 75px;"><colgroup><col style="min-width: 25px;"><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p>Layer</p></th><th colspan="1" rowspan="1"><p>Technology</p></th><th colspan="1" rowspan="1"><p>Version</p></th></tr><tr><td colspan="1" rowspan="1"><p>UI Framework</p></td><td colspan="1" rowspan="1"><p>React</p></td><td colspan="1" rowspan="1"><p>18.2</p></td></tr><tr><td colspan="1" rowspan="1"><p>Type System</p></td><td colspan="1" rowspan="1"><p>TypeScript</p></td><td colspan="1" rowspan="1"><p>5.4</p></td></tr><tr><td colspan="1" rowspan="1"><p>Design System</p></td><td colspan="1" rowspan="1"><p>Fluent UI v9</p></td><td colspan="1" rowspan="1"><p>9.46</p></td></tr><tr><td colspan="1" rowspan="1"><p>WYSIWYG Editor</p></td><td colspan="1" rowspan="1"><p>TipTap</p></td><td colspan="1" rowspan="1"><p>2.2</p></td></tr><tr><td colspan="1" rowspan="1"><p>Code Editor</p></td><td colspan="1" rowspan="1"><p>CodeMirror</p></td><td colspan="1" rowspan="1"><p>6.0</p></td></tr><tr><td colspan="1" rowspan="1"><p>Markdown Parser</p></td><td colspan="1" rowspan="1"><p>Marked</p></td><td colspan="1" rowspan="1"><p>12.0</p></td></tr><tr><td colspan="1" rowspan="1"><p>HTML-to-Markdown</p></td><td colspan="1" rowspan="1"><p>Turndown + GFM</p></td><td colspan="1" rowspan="1"><p>7.1</p></td></tr><tr><td colspan="1" rowspan="1"><p>Diagrams</p></td><td colspan="1" rowspan="1"><p>Mermaid</p></td><td colspan="1" rowspan="1"><p>11.12</p></td></tr><tr><td colspan="1" rowspan="1"><p>State Management</p></td><td colspan="1" rowspan="1"><p>Zustand</p></td><td colspan="1" rowspan="1"><p>4.5</p></td></tr><tr><td colspan="1" rowspan="1"><p>Authentication</p></td><td colspan="1" rowspan="1"><p>MSAL Browser + Google Identity Services</p></td><td colspan="1" rowspan="1"><p>5.1</p></td></tr><tr><td colspan="1" rowspan="1"><p>Teams SDK</p></td><td colspan="1" rowspan="1"><p>@microsoft/teams-js</p></td><td colspan="1" rowspan="1"><p>2.19</p></td></tr><tr><td colspan="1" rowspan="1"><p>Build Tool</p></td><td colspan="1" rowspan="1"><p>Vite</p></td><td colspan="1" rowspan="1"><p>5.1</p></td></tr><tr><td colspan="1" rowspan="1"><p>Linting</p></td><td colspan="1" rowspan="1"><p>ESLint</p></td><td colspan="1" rowspan="1"><p>9.0</p></td></tr></tbody></table>

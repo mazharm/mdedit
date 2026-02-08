@@ -6,23 +6,35 @@ MDEdit is a full-featured Markdown editor that runs as a personal tab inside Mic
 
 ### Signing In
 
-Click the **Sign In** button in the top-right corner of the toolbar to connect with your Microsoft 365 account. Signing in enables:
+MDEdit supports two sign-in providers:
+
+**Microsoft (recommended)** -- Click the **Sign In** button in the toolbar and choose **Microsoft**. This enables the full feature set:
 
 - Saving and opening files from OneDrive
-- @mentioning colleagues in comments
+- @mentioning colleagues in comments with directory search
 - Creating Microsoft To-Do tasks from comments
+- Your profile photo appears in the toolbar
 
-You can use MDEdit without signing in for local file editing with basic comment functionality.
+When running inside Teams, sign-in happens automatically using your Teams identity.
+
+**Google** -- Click the **Sign In** button and choose **Google**. Available outside of Teams, this provides:
+
+- Comment authorship with your Google name and email
+- Local file editing with your identity attached to comments
+
+Google sign-in does not provide access to OneDrive or Microsoft To-Do.
+
+You can use MDEdit without signing in for local file editing with anonymous comment functionality.
 
 ---
 
 ## Editor Modes
 
-MDEdit offers three view modes, switchable via the view toggle in the toolbar:
+MDEdit offers three view modes, switchable via the view toggle in the toolbar. **Rich Text** is the default view.
 
 | Mode | Description |
 |------|-------------|
-| **Rich Text** | Visual WYSIWYG editor - what you see is what you get |
+| **Rich Text** | Visual WYSIWYG editor (default) - what you see is what you get |
 | **Split** | Side-by-side view with rich text on the left and raw Markdown on the right |
 | **Markdown** | Raw Markdown code editor with syntax highlighting |
 
@@ -160,9 +172,9 @@ Comments let you annotate specific text selections for review and collaboration.
 ### Adding a Comment
 
 1. **Select text** in the rich text editor
-2. Right-click and choose **Add Comment** from the context menu
+2. Right-click and choose **Add Comment** from the context menu, or use `Ctrl+Shift+M`
 3. The selected text is highlighted in yellow
-4. The comment appears in the right sidebar
+4. The comment appears in the right sidebar and is automatically focused for typing
 
 If no text is selected, the word under your cursor is automatically selected.
 
@@ -173,24 +185,36 @@ In the **Comments** sidebar:
 - **Click** a comment to scroll to its highlighted text in the editor
 - **Click the comment text** to edit it
 - **Reply** to start a threaded conversation
+- **Reply & resolve** to add a final reply and resolve in one step
 - **Resolve** (checkmark) to mark a comment as addressed
 - **Delete** (trash icon) to remove a comment
 - **Show resolved** checkbox to toggle visibility of resolved comments
 
 ### @Mentions
 
-When editing a comment or reply, type `@` followed by a name to search for colleagues:
+When editing a comment or reply, type `@` to mention a colleague:
 
-1. Type `@john` to search
-2. Use arrow keys to navigate results
-3. Press **Enter** to insert the mention
-4. Mentioned users appear highlighted in blue
+1. Type `@` -- a dropdown appears showing:
+   - **Recently mentioned people** (MRU -- most recently used)
+   - **Document authors** (people who have commented on this file)
+2. Continue typing to filter the list (e.g., `@joh` filters to names matching "joh")
+3. Use **arrow keys** to navigate the dropdown
+4. Press **Enter** to insert the selected mention
+5. Select **"Search people..."** at the bottom of the list to search the full directory:
+   - **In Teams**: Opens the Teams native people picker
+   - **Outside Teams**: Opens a dialog where you can enter a name and email
+6. Mentioned users appear highlighted in blue
 
-Requires sign-in to search the organization directory.
+Selected people are automatically added to the MRU list for faster future mentions.
 
 ### Task Assignment
 
-When editing a comment, you can assign it as a task. This creates a corresponding task in your **Microsoft To-Do** app under the "MDEdit Comments" list.
+You can assign comments as tasks to mentioned people:
+
+- **Assign from mention**: After mentioning someone in a comment, click the assign button next to their name in the comment
+- Tasks sync to **Microsoft To-Do** under the "MDEdit Comments" list (requires Microsoft sign-in)
+- Set a due date for the task using the date picker
+- Task completion status syncs between MDEdit and To-Do
 
 ### Comment Storage
 
@@ -212,9 +236,13 @@ Comments are saved directly inside your Markdown files as specially formatted HT
 | `Ctrl+I` | Italic |
 | `Ctrl+U` | Underline |
 | `Ctrl+E` | Inline code |
+| `Ctrl+Shift+M` | Add comment (with text selected) |
 | `Ctrl+Z` | Undo |
 | `Ctrl+Shift+Z` / `Ctrl+Y` | Redo |
 | `Tab` (in code/mermaid) | Indent |
+| `↑` / `↓` | Navigate @mention dropdown |
+| `Enter` | Select @mention / confirm |
+| `Escape` | Dismiss @mention dropdown |
 
 ---
 
@@ -232,6 +260,8 @@ Comments are saved directly inside your Markdown files as specially formatted HT
 
 6. **Offline editing**: Local file editing works without an internet connection. OneDrive features require connectivity.
 
+7. **Quick @mentions**: The MRU list remembers who you mention most, so frequently-mentioned colleagues appear at the top of the dropdown.
+
 ---
 
 ## Troubleshooting
@@ -245,13 +275,17 @@ Comments are saved directly inside your Markdown files as specially formatted HT
 - Ensure your organization's Azure AD admin has consented to the required permissions
 - Try signing out and back in
 
+### Google sign-in not showing
+- Google sign-in is only available outside of Teams
+- Verify the app is configured with a Google Client ID
+
 ### File won't save
 - Check your internet connection for OneDrive saves
 - For local files, ensure the browser still has permission to access the file
 - Try "Save As" to save to a new location
 
 ### OneDrive files not loading
-- Verify you're signed in
+- Verify you're signed in with Microsoft
 - Check that you have Files.ReadWrite permission
 - Try searching for the file instead of browsing
 

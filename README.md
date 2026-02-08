@@ -9,11 +9,12 @@ A full-featured WYSIWYG Markdown editor that runs as a Microsoft Teams personal 
 
 ## Features
 
-- **Dual-mode editor** -- WYSIWYG rich text, raw Markdown, or side-by-side split view with live sync
+- **Dual-mode editor** -- WYSIWYG rich text (default), raw Markdown, or side-by-side split view with live sync
 - **Rich formatting** -- Bold, italic, underline, strikethrough, headings, lists, task lists, tables, code blocks with syntax highlighting
 - **Mermaid diagrams** -- Flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, pie charts, mindmaps, and more
-- **Collaborative comments** -- Select text, add comments, @mention colleagues, threaded replies, resolve/reopen workflow
+- **Collaborative comments** -- Select text, add comments, @mention colleagues with MRU-based suggestions, threaded replies, resolve/reopen workflow
 - **Task integration** -- Assign comments as tasks, synced to Microsoft To-Do
+- **Multi-provider sign-in** -- Microsoft (Azure AD) and Google OAuth for flexible authentication
 - **OneDrive file management** -- Browse, open, save, and search Markdown files in OneDrive
 - **Local file support** -- Open and save local files via File System Access API with drag-and-drop
 - **Teams-native UI** -- Built with Fluent UI v9 for seamless Teams look-and-feel
@@ -25,6 +26,7 @@ A full-featured WYSIWYG Markdown editor that runs as a Microsoft Teams personal 
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Azure AD App Registration](#azure-ad-app-registration)
+- [Google OAuth Setup](#google-oauth-setup)
 - [Local Development](#local-development)
 - [Deploying to Azure Static Web Apps](#deploying-to-azure-static-web-apps)
 - [Creating the Teams App Package](#creating-the-teams-app-package)
@@ -62,7 +64,7 @@ cp .env.example .env
 npm run dev
 ```
 
-The app will be available at `http://localhost:3000`.
+The app will be available at `https://localhost:3002`.
 
 ## Azure AD App Registration
 
@@ -75,19 +77,23 @@ MDEdit uses Azure AD for authentication via OAuth 2.0 with PKCE (no client secre
 3. Configure:
    - **Name**: `MDEdit Teams`
    - **Supported account types**: "Accounts in any organizational directory" (multi-tenant) or "Single tenant" for your org only
-   - **Redirect URI**: Select **Single-page application (SPA)** and enter `https://localhost:3000`
+   - **Redirect URI**: Select **Single-page application (SPA)** and enter `https://localhost:3002`
 4. Click **Register**
 5. Copy the **Application (client) ID** -- you'll need this
 
 ### Step 2: Configure Authentication
 
 1. Go to **Authentication** in your app registration
-2. Under **Single-page application** redirect URIs, add your production URL:
+2. Under **Single-page application** redirect URIs, add:
+   ```
+   https://localhost:3002/auth-popup.html
+   ```
+3. Also add your production URL when deploying:
    ```
    https://your-app-name.azurestaticapps.net
    ```
-3. Under **Implicit grant and hybrid flows**, ensure both checkboxes are **unchecked** (we use PKCE, not implicit flow)
-4. Set **Supported account types** to match your needs
+4. Under **Implicit grant and hybrid flows**, ensure both checkboxes are **unchecked** (we use PKCE, not implicit flow)
+5. Set **Supported account types** to match your needs
 
 ### Step 3: Add API Permissions
 
@@ -120,12 +126,68 @@ VITE_AAD_TENANT_ID=common
 
 Set `VITE_AAD_TENANT_ID` to your tenant ID for single-tenant apps, or leave as `common` for multi-tenant.
 
+### Step 5: Configure for Teams NAA (Nested App Authentication)
+
+To enable seamless SSO inside Teams, you need to expose an API on your app registration:
+
+1. Go to **Expose an API** in your app registration
+2. Set the **Application ID URI** to:
+   ```
+   api://localhost:3002/{your-client-id}
+   ```
+   Replace `{your-client-id}` with your Application (client) ID.
+3. Click **Add a scope**:
+   - **Scope name**: `access_as_user`
+   - **Who can consent**: Admins and users
+   - **Admin consent display name**: `Access MDEdit as the user`
+   - **Admin consent description**: `Allow MDEdit to access Microsoft Graph APIs on behalf of the user`
+   - **User consent display name**: `Access MDEdit`
+   - **User consent description**: `Allow MDEdit to access your Microsoft data`
+   - **State**: Enabled
+4. Under **Authorized client applications**, add the Teams client IDs and select the `access_as_user` scope:
+   - `1fec8e78-bce4-4aaf-ab1b-5451cc387264` (Teams desktop/mobile)
+   - `5e3ce6c0-2b1f-4285-8d4b-75ee78787346` (Teams web)
+
+## Google OAuth Setup
+
+Google sign-in is optional and provides an alternative authentication method, especially useful outside of Teams.
+
+### Step 1: Create a Google Cloud Project
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Navigate to **APIs & Services** > **OAuth consent screen**
+4. Select **External** user type and click **Create**
+5. Fill in the required fields (App name, User support email, Developer contact)
+6. No scopes are needed -- MDEdit only uses the ID token for identity
+7. Add test users if in testing mode
+
+### Step 2: Create OAuth 2.0 Client ID
+
+1. Go to **APIs & Services** > **Credentials**
+2. Click **Create Credentials** > **OAuth 2.0 Client ID**
+3. Select **Web application** as the application type
+4. Set **Authorized JavaScript Origins**:
+   - `https://localhost:3002` (for local development)
+   - Your production URL (e.g., `https://mdedit-teams.azurestaticapps.net`)
+5. Click **Create** and copy the **Client ID**
+
+### Step 3: Configure Environment
+
+Add the Google Client ID to your `.env` file:
+
+```env
+VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+```
+
+Google sign-in will automatically appear as an option when this environment variable is set.
+
 ## Local Development
 
 ### Basic Development
 
 ```bash
-npm run dev          # Start dev server at http://localhost:3000
+npm run dev          # Start dev server at https://localhost:3002
 npm run build        # Production build (output: dist/)
 npm run preview      # Preview production build locally
 npm run lint         # Run ESLint
@@ -155,10 +217,10 @@ The dev server automatically enables HTTPS when it finds `certs/localhost-key.pe
 
 ```bash
 # Using VS Code dev tunnels
-devtunnel host -p 3000
+devtunnel host -p 3002
 
 # Or using ngrok
-ngrok http 3000
+ngrok http 3002
 ```
 
 Add the tunnel URL as an additional SPA redirect URI in your Azure AD app registration.
@@ -188,8 +250,26 @@ Add the tunnel URL as an additional SPA redirect URI in your Azure AD app regist
    |------|-------|
    | `VITE_AAD_CLIENT_ID` | Your Azure AD Application Client ID |
    | `VITE_AAD_TENANT_ID` | `common` (or your specific tenant ID) |
+   | `VITE_GOOGLE_CLIENT_ID` | Your Google OAuth Client ID (optional) |
+
+   > **Note**: Vite environment variables are embedded at build time, not read at runtime. These settings are used by the GitHub Actions build step. If you deploy manually, set them before running `npm run build`.
 
 5. The GitHub Action workflow will be auto-created. Push to trigger a build.
+
+### SPA Routing Configuration
+
+Azure Static Web Apps needs a fallback route for client-side routing. Create a `staticwebapp.config.json` in the project root:
+
+```json
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "/*.ico", "/*.png", "/*.svg"]
+  }
+}
+```
+
+This ensures that direct navigation or page refreshes load the SPA correctly.
 
 ### Option B: Via Azure CLI
 
@@ -220,7 +300,8 @@ az staticwebapp appsettings set \
   --resource-group mdedit-rg \
   --setting-names \
     VITE_AAD_CLIENT_ID=your-client-id \
-    VITE_AAD_TENANT_ID=common
+    VITE_AAD_TENANT_ID=common \
+    VITE_GOOGLE_CLIENT_ID=your-google-client-id
 ```
 
 ### Option C: Manual Deploy (no GitHub integration)
@@ -240,13 +321,16 @@ swa deploy ./dist \
 
 Get the deployment token from Azure Portal > your Static Web App > **Manage deployment token**.
 
-### Post-Deployment: Update Azure AD
+### Post-Deployment: Update Auth Providers
 
-After deploying, add your production URL as a redirect URI:
+After deploying, update redirect URIs for each auth provider:
 
-1. Go to Azure Portal > your App Registration > **Authentication**
-2. Under SPA redirect URIs, add: `https://mdedit-teams.azurestaticapps.net`
-3. Save
+1. **Azure AD**: Go to Azure Portal > your App Registration > **Authentication**
+   - Under SPA redirect URIs, add: `https://mdedit-teams.azurestaticapps.net`
+   - Update the Application ID URI under **Expose an API** to include your production domain:
+     `api://mdedit-teams.azurestaticapps.net/{your-client-id}`
+2. **Google OAuth** (if using): Go to Google Cloud Console > your OAuth Client
+   - Add your production URL to **Authorized JavaScript Origins**
 
 ## Creating the Teams App Package
 
@@ -345,10 +429,11 @@ npm run build
 1. Connect your repository
 2. Set build command: `npm run build`
 3. Set publish directory: `dist`
-4. Add environment variable: `VITE_AAD_CLIENT_ID=your-client-id`
+4. Add environment variables: `VITE_AAD_CLIENT_ID=your-client-id` and optionally `VITE_GOOGLE_CLIENT_ID=your-google-client-id`
 
 For any deployment, remember to:
 - Add the deployment URL as an SPA redirect URI in Azure AD
+- Add the deployment URL to Google OAuth Authorized JavaScript Origins (if using)
 - Update `manifest.json` with the correct URLs
 - Update `validDomains` in the manifest
 
@@ -367,6 +452,8 @@ mdedit/
 │   ├── index.tsx               # React entry point
 │   ├── index.css               # Global styles
 │   ├── ErrorBoundary.tsx       # Error boundary
+│   ├── auth/
+│   │   └── googleAuth.ts      # Google Identity Services integration
 │   ├── components/
 │   │   ├── Editor/
 │   │   │   ├── Toolbar.tsx     # Main toolbar with all controls
@@ -375,36 +462,40 @@ mdedit/
 │   │   │   └── SplitPane.tsx   # Resizable split layout
 │   │   ├── Comments/
 │   │   │   ├── CommentSidebar.tsx # Comment list & management
-│   │   │   └── MentionPicker.tsx  # @mention autocomplete
+│   │   │   └── MentionPicker.tsx  # @mention autocomplete with MRU
 │   │   └── FileManager/
 │   │       ├── FilePicker.tsx  # File open/save dialog
 │   │       ├── OneDrivePicker.tsx # OneDrive file browser
 │   │       └── LocalFilePicker.tsx # Local file system access
 │   ├── hooks/
-│   │   ├── useTeamsContext.ts  # Teams SDK initialization
-│   │   └── useTeamsSSO.ts     # Azure AD authentication
+│   │   ├── useAuth.ts          # Unified auth (Microsoft + Google)
+│   │   ├── useGoogleAuth.ts    # Google OAuth hook
+│   │   ├── useTeamsContext.ts   # Teams SDK initialization
+│   │   └── useTeamsSSO.ts      # Azure AD authentication
 │   ├── services/
-│   │   ├── graphService.ts    # Microsoft Graph HTTP client
-│   │   ├── oneDriveService.ts # OneDrive file operations
-│   │   ├── peopleService.ts   # User search & profiles
-│   │   └── todoService.ts     # Microsoft To-Do integration
+│   │   ├── graphService.ts     # Microsoft Graph HTTP client
+│   │   ├── localPeopleService.ts # Local/fallback people search
+│   │   ├── oneDriveService.ts  # OneDrive file operations
+│   │   ├── peopleService.ts    # User search & profiles
+│   │   └── todoService.ts      # Microsoft To-Do integration
 │   ├── stores/
-│   │   ├── commentStore.ts    # Comment state (Zustand)
-│   │   ├── editorStore.ts     # Editor ref type definitions
-│   │   └── fileStore.ts       # File state & recent files
+│   │   ├── commentStore.ts     # Comment state (Zustand)
+│   │   ├── editorStore.ts      # Editor ref type definitions
+│   │   └── fileStore.ts        # File state & recent files
 │   ├── extensions/
-│   │   ├── CommentMark.ts     # TipTap comment highlight mark
-│   │   └── MermaidBlock.tsx   # TipTap mermaid diagram node
+│   │   ├── CommentMark.ts      # TipTap comment highlight mark
+│   │   └── MermaidBlock.tsx    # TipTap mermaid diagram node
 │   └── utils/
-│       ├── markdown.ts        # Markdown/HTML conversion & comment parsing
-│       └── fileHandleStore.ts # IndexedDB persistence for file handles
+│       ├── markdown.ts         # Markdown/HTML conversion & comment parsing
+│       └── fileHandleStore.ts  # IndexedDB persistence for file handles
 ├── docs/
-│   ├── DESIGN.md              # Architecture & design document
-│   └── HELP.md                # User guide
-├── .env.example               # Environment variable template
-├── vite.config.ts             # Vite configuration
-├── tsconfig.json              # TypeScript configuration
-└── package.json               # Dependencies & scripts
+│   ├── DESIGN.md               # Architecture & design document
+│   └── HELP.md                 # User guide
+├── .env.example                # Environment variable template
+├── staticwebapp.config.json    # Azure SWA routing config
+├── vite.config.ts              # Vite configuration
+├── tsconfig.json               # TypeScript configuration
+└── package.json                # Dependencies & scripts
 ```
 
 ## Architecture
@@ -415,8 +506,9 @@ MDEdit is a client-side SPA with no backend server:
 - **Rich text editing**: TipTap (ProseMirror) with custom extensions
 - **Code editing**: CodeMirror 6 with Markdown language support
 - **State management**: Zustand (lightweight stores)
-- **Authentication**: MSAL.js with Nested App Authentication (NAA)
+- **Authentication**: MSAL.js with Nested App Authentication (NAA) for Microsoft; Google Identity Services for Google sign-in
 - **API integration**: Microsoft Graph for OneDrive, People, and To-Do
+- **@Mentions**: MRU-based autocomplete with Teams native people picker or fallback dialog
 - **Build**: Vite for fast development and optimized production builds
 
 See [docs/DESIGN.md](docs/DESIGN.md) for detailed architecture diagrams and data flow documentation.
@@ -444,6 +536,11 @@ See [docs/DESIGN.md](docs/DESIGN.md) for detailed architecture diagrams and data
 **Sign-in popup blocked**
 - Ensure popups are allowed for your deployment domain
 - In Teams desktop, popups should work automatically
+
+**Google sign-in not appearing**
+- Verify `VITE_GOOGLE_CLIENT_ID` is set in your `.env` file
+- Ensure your domain is in the Authorized JavaScript Origins in Google Cloud Console
+- Google sign-in is not available inside the Teams iframe (Microsoft auth is used there)
 
 ### Teams Issues
 
