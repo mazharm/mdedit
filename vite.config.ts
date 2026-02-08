@@ -23,6 +23,7 @@ export default defineConfig(({ command }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
+      manifest: true,
     },
     // Required for msal-browser to work correctly
     optimizeDeps: {

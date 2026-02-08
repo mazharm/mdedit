@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { app } from '@microsoft/teams-js';
+import { isInVSCode } from '../utils/vscodeApi';
 
 interface TeamsContextState {
   context: app.Context | null;
@@ -23,6 +24,18 @@ export function useTeamsContext(): TeamsContextState {
 
   useEffect(() => {
     async function initialize() {
+      // Skip Teams SDK init entirely in VS Code (saves 3s timeout)
+      if (isInVSCode()) {
+        console.log('useTeamsContext: Running in VS Code, skipping Teams SDK init');
+        setState({
+          context: null,
+          isInitialized: true,
+          initError: null,
+          theme: 'default',
+        });
+        return;
+      }
+
       console.log('useTeamsContext: Starting initialization');
 
       if (globalInitialized && globalContext) {

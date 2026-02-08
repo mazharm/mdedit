@@ -1,10 +1,106 @@
-# MDEdit Teams - User Guide
+# MDEdit - User Guide
 
 ## Getting Started
 
-MDEdit is a full-featured Markdown editor that runs as a personal tab inside Microsoft Teams. It combines a visual rich-text editor with a raw Markdown code editor, so you can write and format documents whichever way you prefer.
+MDEdit is a full-featured Markdown editor available as a Microsoft Teams personal tab, a VS Code extension, and a standalone website. It combines a visual rich-text editor with a raw Markdown code editor, so you can write and format documents whichever way you prefer.
 
-### Signing In
+---
+
+## Installation
+
+### Microsoft Teams
+
+Download the app package: [mdedit-teams.zip](https://green-sky-0a669861e.1.azurestaticapps.net/mdedit-teams.zip)
+
+**Prerequisites:**
+- Microsoft Teams (desktop or web)
+- Your organization must allow custom app sideloading (see [Admin Setup](#admin-setup) if it's not enabled)
+
+#### Option 1: Teams Desktop or Web (Recommended)
+
+1. Open **Microsoft Teams**
+2. Click the **Apps** icon in the left sidebar (or bottom bar on mobile)
+3. Click **Manage your apps** at the bottom of the Apps panel
+4. Click **Upload an app**
+5. Select **Upload a custom app**
+6. Browse to and select the **mdedit-teams.zip** file
+7. In the dialog that appears, review the app details and click **Add**
+8. MDEdit will now appear in your left sidebar
+
+#### Option 2: Direct Link in Teams
+
+1. Open **Microsoft Teams**
+2. Click the **...** (More added apps) button in the left sidebar
+3. Click **More apps** at the bottom
+4. Click **Upload an app** in the bottom-left corner
+5. Select **Upload a custom app**
+6. Choose the **mdedit-teams.zip** file and click **Add**
+
+#### After Installation
+
+- Click the **MDEdit** icon in the left sidebar to open the editor
+- Right-click the icon and select **Pin** to keep it visible in your sidebar
+- Sign in with your Microsoft account to enable OneDrive file access, @mentions, and task integration
+
+#### Admin Setup
+
+If your organization doesn't allow custom app sideloading, a Teams administrator needs to enable it:
+
+1. Go to the **Teams admin center** (https://admin.teams.microsoft.com)
+2. Navigate to **Teams apps** > **Setup policies**
+3. Select the **Global (Org-wide default)** policy (or create a new one)
+4. Toggle **Upload custom apps** to **On**
+5. Click **Save**
+
+Changes may take a few hours to propagate. The admin can also assign the policy to specific users instead of enabling it org-wide.
+
+#### Organization-Wide Deployment (Admin)
+
+1. Go to [Teams Admin Center](https://admin.teams.microsoft.com)
+2. Navigate to **Teams apps** > **Manage apps**
+3. Click **Upload new app**
+4. Select `mdedit-teams.zip`
+5. Configure policies to make it available to users:
+   - Go to **Teams apps** > **Setup policies**
+   - Add MDEdit to the installed apps list
+   - Optionally pin it to the app bar
+
+#### Uninstall
+
+1. Right-click the **MDEdit** icon in the Teams sidebar
+2. Select **Uninstall**
+3. Confirm the uninstallation
+
+### VS Code Extension
+
+1. Get the `.vsix` file (either build it from source with `npm run package:vscode`, or download a release)
+2. Open VS Code
+3. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
+4. Type **"Extensions: Install from VSIX..."** and select it
+5. Browse to the `mdedit-vscode-1.0.0.vsix` file and click **Install**
+6. Reload VS Code when prompted
+
+Once installed, you can:
+- Press `Ctrl+Shift+P` → **"MDEdit: Open WYSIWYG Editor"** to open a new editor panel
+- Right-click any `.md` file in the Explorer → **"Edit in WYSIWYG Editor"**
+- Click the MDEdit button in the editor title bar when a `.md` file is open
+
+#### Setting MDEdit as the Default Markdown Editor
+1. Right-click any `.md` file in the Explorer
+2. Select **"Open With..."**
+3. Choose **"MDEdit WYSIWYG Editor"** from the list
+4. Click **"Configure Default Editor for '*.md'..."** at the bottom of the picker
+5. Select **"MDEdit WYSIWYG Editor"** again
+
+Now all `.md` files will open in MDEdit by default. To switch back, repeat the steps and choose **"Text Editor"** instead.
+
+### Standalone Website
+
+Visit the hosted URL directly in any modern browser.
+
+---
+
+## Signing In
 
 MDEdit supports two sign-in providers:
 
@@ -15,9 +111,9 @@ MDEdit supports two sign-in providers:
 - Creating Microsoft To-Do tasks from comments
 - Your profile photo appears in the toolbar
 
-When running inside Teams, sign-in happens automatically using your Teams identity.
+When running inside Teams, sign-in happens automatically using your Teams identity. In VS Code, sign-in uses your VS Code Microsoft account automatically.
 
-**Google** -- Click the **Sign In** button and choose **Google**. Available outside of Teams, this provides:
+**Google** -- Click the **Sign In** button and choose **Google**. Available in the standalone website, this provides:
 
 - Comment authorship with your Google name and email
 - Local file editing with your identity attached to comments
@@ -267,22 +363,34 @@ Comments are saved directly inside your Markdown files as specially formatted HT
 ## Troubleshooting
 
 ### "Failed to initialize"
-- Refresh the page
-- Ensure you're accessing MDEdit through Microsoft Teams or a supported browser
+- Refresh the page (or close and reopen the VS Code panel)
+- Ensure you're accessing MDEdit through Microsoft Teams, VS Code, or a supported browser
 
 ### Cannot sign in
-- Check that popups are not blocked in your browser
-- Ensure your organization's Azure AD admin has consented to the required permissions
+- **Teams**: Check that popups are not blocked and your organization's Azure AD admin has consented to the required permissions
+- **VS Code**: Ensure the Microsoft authentication extension is working -- try `Ctrl+Shift+P` → "Sign in to Microsoft" separately
+- **Browser**: Check that popups are not blocked
 - Try signing out and back in
 
 ### Google sign-in not showing
-- Google sign-in is only available outside of Teams
+- Google sign-in is only available in the standalone website (not in Teams or VS Code)
 - Verify the app is configured with a Google Client ID
 
 ### File won't save
 - Check your internet connection for OneDrive saves
-- For local files, ensure the browser still has permission to access the file
+- For local files in the browser, ensure the browser still has permission to access the file
+- In VS Code, ensure the file path is still valid and writable
 - Try "Save As" to save to a new location
+
+### VS Code extension not loading
+- Ensure you installed the `.vsix` file and reloaded VS Code
+- Check the VS Code Developer Tools console (`Help` → `Toggle Developer Tools`) for errors
+- Try reinstalling the extension: uninstall first, then install the `.vsix` again
+
+### App shows a blank screen (Teams)
+1. Make sure you're connected to the internet
+2. Try refreshing: right-click the MDEdit tab and select **Reload**
+3. Clear Teams cache: close Teams, delete `%appdata%\Microsoft\Teams\Cache`, and reopen
 
 ### OneDrive files not loading
 - Verify you're signed in with Microsoft

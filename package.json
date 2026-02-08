@@ -8,7 +8,10 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "package:dev": "powershell -Command \"Compress-Archive -Path manifest-dev\\manifest.json,manifest-dev\\color.png,manifest-dev\\outline.png -DestinationPath mdedit-teams-dev.zip -Force\""
+    "package:dev": "powershell -Command \"Compress-Archive -Path manifest-dev\\manifest.json,manifest-dev\\color.png,manifest-dev\\outline.png -DestinationPath mdedit-teams-dev.zip -Force\"",
+    "build:vscode-ext": "cd vscode-extension && npm install && npm run build",
+    "build:vscode": "npm run build && node scripts/copy-dist-to-vscode.mjs && npm run build:vscode-ext",
+    "package:vscode": "npm run build:vscode && cd vscode-extension && npx @vscode/vsce package --allow-missing-repository"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.1.0",

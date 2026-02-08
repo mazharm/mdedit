@@ -43,6 +43,7 @@ const GRAPH_SCOPES = [
   'People.Read',
   'Files.ReadWrite',
   'Tasks.ReadWrite',
+  'Mail.Send',
 ];
 
 let msalInstance: IPublicClientApplication | null = null;

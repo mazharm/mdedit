@@ -15,6 +15,7 @@ import {
 } from '@fluentui/react-icons';
 import { useFileStore } from '../../stores/fileStore';
 import { storeFileHandle, getFileHandle, requestPermissionAndRead } from '../../utils/fileHandleStore';
+import { isInVSCode, sendRequest } from '../../utils/vscodeApi';
 
 // File System Access API types (prefixed to avoid conflicts with built-in types)
 interface FSAFilePickerAcceptType {
@@ -279,6 +280,38 @@ export function LocalFilePicker({
     onFileSelect(content, saveFileName, saveFileName);
   }, [saveFileName, onFileSave, onFileSelect]);
 
+  // Handle file open via VS Code extension host
+  const handleOpenWithVSCode = useCallback(async () => {
+    try {
+      const response = await sendRequest<{
+        type: 'fileOpened';
+        content: string;
+        fileName: string;
+        filePath: string;
+        requestId: string;
+      }>({ type: 'openFile' }, 'fileOpened');
+      onFileSelect(response.content, response.fileName, response.filePath);
+    } catch (err) {
+      console.log('VS Code file open cancelled or failed:', err);
+    }
+  }, [onFileSelect]);
+
+  // Handle file save via VS Code extension host
+  const handleSaveWithVSCode = useCallback(async () => {
+    try {
+      const content = onFileSave();
+      await sendRequest<{
+        type: 'fileSaved';
+        success: boolean;
+        filePath: string;
+        fileName: string;
+        requestId: string;
+      }>({ type: 'saveFileAs', content, suggestedName: saveFileName }, 'fileSaved');
+    } catch (err) {
+      console.log('VS Code file save cancelled or failed:', err);
+    }
+  }, [onFileSave, saveFileName]);
+
   // Handle drag and drop
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -322,9 +355,11 @@ export function LocalFilePicker({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() =>
-              isFileSystemAccessSupported
-                ? handleOpenWithFSA()
-                : fileInputRef.current?.click()
+              isInVSCode()
+                ? handleOpenWithVSCode()
+                : isFileSystemAccessSupported
+                  ? handleOpenWithFSA()
+                  : fileInputRef.current?.click()
             }
           >
             <FolderOpen24Regular className={styles.icon} style={{ fontSize: 48 }} />
@@ -376,7 +411,7 @@ export function LocalFilePicker({
               Save as: {saveFileName}
             </Text>
             <Text size={200}>
-              {isFileSystemAccessSupported
+              {isInVSCode() || isFileSystemAccessSupported
                 ? 'Click the button below to choose a location'
                 : 'Click the button below to download'}
             </Text>
@@ -387,14 +422,18 @@ export function LocalFilePicker({
               appearance="primary"
               icon={<Save24Regular />}
               onClick={
-                isFileSystemAccessSupported ? handleSaveWithFSA : handleSaveWithDownload
+                isInVSCode()
+                  ? handleSaveWithVSCode
+                  : isFileSystemAccessSupported
+                    ? handleSaveWithFSA
+                    : handleSaveWithDownload
               }
             >
-              {isFileSystemAccessSupported ? 'Save to Disk' : 'Download'}
+              {isInVSCode() || isFileSystemAccessSupported ? 'Save to Disk' : 'Download'}
             </Button>
           </div>
 
-          {!isFileSystemAccessSupported && (
+          {!isInVSCode() && !isFileSystemAccessSupported && (
             <Text className={styles.notSupported} size={200}>
               Note: Your browser doesn't support saving files directly. The file will be
               downloaded instead.

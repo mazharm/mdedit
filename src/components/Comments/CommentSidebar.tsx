@@ -21,8 +21,10 @@ import {
 } from '@fluentui/react-icons';
 import { people } from '@microsoft/teams-js';
 import { useCommentStore, Comment } from '../../stores/commentStore';
+import { useFileStore } from '../../stores/fileStore';
 import { MentionPicker } from './MentionPicker';
 import { createTask, completeTask as completeTaskApi, uncompleteTask as uncompleteTaskApi } from '../../services/todoService';
+import { sendCommentNotification } from '../../services/emailService';
 import type { Person } from '../../services/peopleService';
 import type { GetTokenFn } from '../../services/graphService';
 import type { AuthCapabilities } from '../../hooks/useAuth';
@@ -248,6 +250,40 @@ export function CommentSidebar({
     [isAuthenticated, capabilities, getToken]
   );
 
+  // Send email notification to @mentioned users and/or the assignee.
+  // Fire-and-forget — failures are logged but do not block the UI.
+  const sendEmailForComment = useCallback(
+    (
+      commentId: string,
+      overrides?: {
+        text?: string;
+        mentions?: Person[];
+        parentCommentText?: string;
+      }
+    ) => {
+      if (!isAuthenticated || !capabilities?.canSendEmail) return;
+      try {
+        const comment = useCommentStore.getState().comments[commentId];
+        if (!comment) return;
+        const docName = useFileStore.getState().currentFile?.name || 'Untitled';
+        sendCommentNotification(getToken, {
+          quotedText: comment.quotedText,
+          commentText: overrides?.text ?? comment.text,
+          author: comment.author,
+          mentions: (overrides?.mentions ?? comment.mentions) as Person[],
+          assignedTo: comment.assignedTo,
+          parentCommentText: overrides?.parentCommentText,
+          documentName: docName,
+        }).catch(() => {
+          console.log('[MDEdit] Email notification unavailable');
+        });
+      } catch {
+        console.log('[MDEdit] Email notification unavailable');
+      }
+    },
+    [isAuthenticated, capabilities, getToken]
+  );
+
   // When a new comment is created, auto-enter edit mode and focus
   useEffect(() => {
     if (focusCommentId && comments[focusCommentId]) {
@@ -322,12 +358,17 @@ export function CommentSidebar({
         await createTaskForComment(commentId, assignee);
       }
 
+      // Notify @mentioned users and assignee via email
+      if (mentions.length > 0 || assignee) {
+        sendEmailForComment(commentId);
+      }
+
       setEditingId(null);
       setEditText('');
       setMentions([]);
       setAssignee(null);
     },
-    [editText, mentions, assignee, update, comments, createTaskForComment]
+    [editText, mentions, assignee, update, comments, createTaskForComment, sendEmailForComment]
   );
 
   const handleCancelEdit = useCallback(() => {
@@ -346,13 +387,24 @@ export function CommentSidebar({
   const handleSendReply = useCallback(
     (commentId: string) => {
       if (replyText.trim()) {
+        const parentComment = comments[commentId];
         addReply(commentId, replyText, replyMentions);
+
+        // Notify reply @mentions and the parent comment assignee via email
+        if (replyMentions.length > 0 || parentComment?.assignedTo) {
+          sendEmailForComment(commentId, {
+            text: replyText,
+            mentions: replyMentions,
+            parentCommentText: parentComment?.text,
+          });
+        }
+
         setReplyingTo(null);
         setReplyText('');
         setReplyMentions([]);
       }
     },
-    [replyText, replyMentions, addReply]
+    [replyText, replyMentions, addReply, comments, sendEmailForComment]
   );
 
   const handleMentionSelect = useCallback((person: Person) => {
@@ -365,8 +417,18 @@ export function CommentSidebar({
 
   const handleReplyAndResolve = useCallback(
     (commentId: string) => {
+      const parentComment = comments[commentId];
       if (replyText.trim()) {
         addReply(commentId, replyText, replyMentions);
+
+        // Notify reply @mentions and the parent comment assignee via email
+        if (replyMentions.length > 0 || parentComment?.assignedTo) {
+          sendEmailForComment(commentId, {
+            text: replyText,
+            mentions: replyMentions,
+            parentCommentText: parentComment?.text,
+          });
+        }
       }
       completeTask(commentId);
       resolve(commentId);
@@ -375,7 +437,7 @@ export function CommentSidebar({
       setReplyText('');
       setReplyMentions([]);
     },
-    [replyText, replyMentions, addReply, completeTask, resolve, onCommentResolve]
+    [replyText, replyMentions, addReply, completeTask, resolve, onCommentResolve, comments, sendEmailForComment]
   );
 
   const handleAssign = useCallback(
@@ -392,6 +454,7 @@ export function CommentSidebar({
             };
             update(commentId, { assignedTo: assigneeAuthor });
             await createTaskForComment(commentId, assigneeAuthor);
+            sendEmailForComment(commentId);
           }
         } catch (err) {
           console.error('Teams people picker failed:', err);
@@ -404,7 +467,7 @@ export function CommentSidebar({
         }
       }
     },
-    [isInTeams, update, comments, handleStartEdit, createTaskForComment]
+    [isInTeams, update, comments, handleStartEdit, createTaskForComment, sendEmailForComment]
   );
 
   const dateFormatter = React.useMemo(
@@ -635,6 +698,7 @@ export function CommentSidebar({
                             e.stopPropagation();
                             update(comment.id, { assignedTo: person });
                             createTaskForComment(comment.id, person);
+                            sendEmailForComment(comment.id);
                           }}
                         >
                           Assign to {person.name}

@@ -1,0 +1,66 @@
+{
+  "name": "mdedit-vscode",
+  "displayName": "MDEdit - WYSIWYG Markdown Editor",
+  "description": "WYSIWYG markdown editor with comments, @mentions, OneDrive, and To-Do integration",
+  "version": "1.0.0",
+  "publisher": "mdedit",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mdedit.openEditor",
+        "title": "MDEdit: Open WYSIWYG Editor"
+      },
+      {
+        "command": "mdedit.openEditorForFile",
+        "title": "Edit in WYSIWYG Editor"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "mdedit.markdownEditor",
+        "displayName": "MDEdit WYSIWYG Editor",
+        "selector": [
+          { "filenamePattern": "*.md" },
+          { "filenamePattern": "*.markdown" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .md",
+          "command": "mdedit.openEditorForFile",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "when": "resourceExtname == .md",
+          "command": "mdedit.openEditorForFile",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.21.1",
+    "esbuild": "^0.20.0"
+  },
+  "overrides": {
+    "undici": "6.6.2"
+  }
+}

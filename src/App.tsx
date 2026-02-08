@@ -16,6 +16,7 @@ import {
 import { ChevronLeft24Regular } from '@fluentui/react-icons';
 import { useTeamsContext } from './hooks/useTeamsContext';
 import { useAuth } from './hooks/useAuth';
+import { isInVSCode, getVSCodeApi, sendRequest } from './utils/vscodeApi';
 import { SplitPane } from './components/Editor/SplitPane';
 import { Toolbar } from './components/Editor/Toolbar';
 import { WysiwygEditor } from './components/Editor/WysiwygEditor';
@@ -189,7 +190,7 @@ function AppContent() {
         name: fileName,
         path: filePath,
         id: fileId,
-        source: fileId ? 'onedrive' : (fileHandle ? 'local' : undefined)
+        source: fileId ? 'onedrive' : ((fileHandle || isInVSCode()) ? 'local' : undefined)
       });
       setLocalFileHandle(fileHandle || null);
       setIsDirty(false);
@@ -197,6 +198,55 @@ function AppContent() {
     },
     [loadComments, setCurrentFile, setIsDirty]
   );
+
+  // Ref to handleFileOpen for use in the VS Code message listener
+  const handleFileOpenRef = useRef(handleFileOpen);
+  handleFileOpenRef.current = handleFileOpen;
+
+  // Suppress content sync immediately after receiving content from the host
+  const isReceivingFromHostRef = useRef(false);
+
+  // Listen for unsolicited messages from the VS Code extension host
+  // (initial file load from command or custom editor, document saves, etc.)
+  useEffect(() => {
+    if (!isInVSCode()) return;
+
+    function handler(event: MessageEvent) {
+      const data = event.data;
+      if (!data || !data.type) return;
+
+      // Initial file load or external document change
+      if (data.type === 'fileOpened' && !data.requestId) {
+        isReceivingFromHostRef.current = true;
+        handleFileOpenRef.current(data.content, data.fileName, data.filePath);
+        setTimeout(() => { isReceivingFromHostRef.current = false; }, 1000);
+      }
+
+      // Document saved by VS Code — clear dirty flag
+      if (data.type === 'documentSaved') {
+        useFileStore.getState().setIsDirty(false);
+      }
+    }
+
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  // Sync content changes back to VS Code extension host (for custom editor)
+  useEffect(() => {
+    if (!isInVSCode() || isReceivingFromHostRef.current) return;
+
+    const timer = setTimeout(() => {
+      if (isReceivingFromHostRef.current) return;
+      const file = useFileStore.getState().currentFile;
+      if (!file) return;
+      const commentsArray = Object.values(useCommentStore.getState().comments);
+      const content = embedCommentsInMarkdown(markdown, commentsArray);
+      getVSCodeApi()?.postMessage({ type: 'contentChanged', content });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [markdown, comments]);
 
   // Get content for saving
   const getContentForSave = useCallback(() => {
@@ -219,6 +269,23 @@ function AppContent() {
         return;
       } catch (err) {
         console.error('Failed to save to OneDrive:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+
+    // Try to save via VS Code extension host
+    if (isInVSCode() && file?.path && file.source === 'local') {
+      setIsSaving(true);
+      try {
+        await sendRequest(
+          { type: 'writeFile', filePath: file.path, content },
+          'fileWritten',
+        );
+        useFileStore.getState().setIsDirty(false);
+        return;
+      } catch (err) {
+        console.error('Failed to save via VS Code:', err);
       } finally {
         setIsSaving(false);
       }
@@ -458,7 +525,7 @@ function AppContent() {
         onOpenChange={setShowSignInDialog}
         onSignInWithMicrosoft={signInWithMicrosoft}
         onSignInWithGoogle={signInWithGoogle}
-        googleEnabled={!!GOOGLE_CLIENT_ID && !isInTeams}
+        googleEnabled={!!GOOGLE_CLIENT_ID && !isInTeams && !isInVSCode()}
       />
     </div>
   );
@@ -467,8 +534,20 @@ function AppContent() {
 export default function App() {
   const { context, theme } = useTeamsContext();
 
-  // Determine Fluent UI theme based on Teams theme
+  // Determine Fluent UI theme based on Teams theme or VS Code theme
   const getFluentTheme = () => {
+    // VS Code: detect theme from data attribute set by the extension host
+    if (isInVSCode()) {
+      const themeKind = document.body.dataset.vscodeThemeKind;
+      if (themeKind === 'vscode-high-contrast' || themeKind === 'vscode-high-contrast-light') {
+        return teamsHighContrastTheme;
+      }
+      if (themeKind === 'vscode-dark') {
+        return webDarkTheme;
+      }
+      return webLightTheme;
+    }
+
     if (!context) {
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? webDarkTheme : webLightTheme;
     }

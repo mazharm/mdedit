@@ -1,0 +1,11 @@
+src/**
+node_modules/**
+.gitignore
+tsconfig.json
+esbuild.mjs
+*.map
+media/**/*.map
+media/mdedit-teams.zip
+media/auth-end.html
+media/auth-popup.html
+media/staticwebapp.config.json
