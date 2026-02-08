@@ -132,7 +132,8 @@ export function useTeamsSSO() {
 
   const tokenCache = useRef<{ token: string; expiresAt: number } | null>(null);
 
-  // Get access token
+  // Get access token for Graph API. Returns null if Graph permissions are unavailable
+  // (e.g. admin consent not granted). Callers should degrade gracefully.
   const getToken = useCallback(async (): Promise<string | null> => {
     // Check cache first
     if (tokenCache.current && tokenCache.current.expiresAt > Date.now()) {
@@ -299,23 +300,18 @@ export function useTeamsSSO() {
             // Strategy 1 gives us user identity but no MSAL account.
             // Try to silently establish an MSAL account in the background
             // so getToken() works for Graph API calls (People, OneDrive, etc.)
+            // If this fails (e.g. admin consent not granted), Graph features
+            // gracefully degrade — task assignments are still tracked locally.
+            const loginHint = payload.preferred_username || payload.upn;
             (async () => {
               try {
-                const response = await pca.ssoSilent({ scopes: LOGIN_SCOPES });
+                const response = await pca.ssoSilent({ scopes: LOGIN_SCOPES, loginHint });
                 if (response?.account) {
                   pca.setActiveAccount(response.account);
                   console.log('[MDEdit Auth] Background ssoSilent succeeded — Graph API ready');
                 }
               } catch {
-                try {
-                  const response = await pca.loginPopup({ scopes: LOGIN_SCOPES });
-                  if (response?.account) {
-                    pca.setActiveAccount(response.account);
-                    console.log('[MDEdit Auth] Background loginPopup succeeded — Graph API ready');
-                  }
-                } catch (e) {
-                  console.warn('[MDEdit Auth] Could not establish MSAL account for Graph API:', e);
-                }
+                console.log('[MDEdit Auth] Graph API unavailable (admin consent may be required). Task assignments will be tracked locally.');
               }
             })();
 

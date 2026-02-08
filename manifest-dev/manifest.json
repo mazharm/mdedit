@@ -1,0 +1,41 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "100be30b-5518-4f9d-9459-212798b4b939",
+  "packageName": "com.mdedit.teams.dev",
+  "developer": {
+    "name": "MDEdit Dev",
+    "websiteUrl": "https://localhost:3002",
+    "privacyUrl": "https://localhost:3002/privacy",
+    "termsOfUseUrl": "https://localhost:3002/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "MDEdit Dev",
+    "full": "MDEdit Dev Markdown Editor"
+  },
+  "description": {
+    "short": "WYSIWYG Markdown editor with comments (Dev)",
+    "full": "A powerful Markdown editor that combines WYSIWYG editing with a raw Markdown view. Features include rich text editing, OneDrive integration, commenting, and Mermaid diagram support. (Local development build)"
+  },
+  "accentColor": "#6366F1",
+  "staticTabs": [
+    {
+      "entityId": "mdedit",
+      "name": "Editor",
+      "contentUrl": "https://localhost:3002",
+      "websiteUrl": "https://localhost:3002",
+      "scopes": ["personal"]
+    }
+  ],
+  "permissions": ["identity"],
+  "validDomains": ["localhost"],
+  "webApplicationInfo": {
+    "id": "7674997b-f4f4-45d7-ade3-90f41f0bac99",
+    "resource": "api://localhost:3002/7674997b-f4f4-45d7-ade3-90f41f0bac99"
+  }
+}

@@ -22,10 +22,11 @@ import {
 import { people } from '@microsoft/teams-js';
 import { useCommentStore, Comment } from '../../stores/commentStore';
 import { MentionPicker } from './MentionPicker';
-import { createTask } from '../../services/todoService';
+import { createTask, completeTask as completeTaskApi, uncompleteTask as uncompleteTaskApi } from '../../services/todoService';
 import type { Person } from '../../services/peopleService';
 import type { GetTokenFn } from '../../services/graphService';
 import type { AuthCapabilities } from '../../hooks/useAuth';
+import type { Author } from '../../stores/commentStore';
 
 const useStyles = makeStyles({
   container: {
@@ -139,6 +140,19 @@ const useStyles = makeStyles({
     flexWrap: 'wrap',
     marginTop: '4px',
   },
+  attentionBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 16px',
+    backgroundColor: tokens.colorPaletteYellowBackground2,
+    borderBottom: `1px solid ${tokens.colorPaletteYellowBorder1}`,
+    fontSize: '12px',
+    cursor: 'pointer',
+    '&:hover': {
+      backgroundColor: tokens.colorPaletteYellowBackground3,
+    },
+  },
   emptyState: {
     display: 'flex',
     flexDirection: 'column',
@@ -164,6 +178,8 @@ interface CommentSidebarProps {
   isInTeams?: boolean;
   focusCommentId?: string | null;
   onFocusHandled?: () => void;
+  currentUserId?: string;
+  currentUserEmail?: string;
 }
 
 export function CommentSidebar({
@@ -179,6 +195,8 @@ export function CommentSidebar({
   isInTeams = false,
   focusCommentId,
   onFocusHandled,
+  currentUserId,
+  currentUserEmail,
 }: CommentSidebarProps) {
   const styles = useStyles();
   const {
@@ -203,6 +221,33 @@ export function CommentSidebar({
   const [assignee, setAssignee] = useState<Person | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Try to create a Microsoft To-Do task for a comment.
+  // If Graph API is unavailable (no admin consent), the assignment is still
+  // tracked locally in the comment store and saved in the document.
+  const createTaskForComment = useCallback(
+    async (commentId: string, assigneeAuthor: Author) => {
+      if (!isAuthenticated || !capabilities?.canUseTodoTasks) return;
+      try {
+        const comment = useCommentStore.getState().comments[commentId];
+        if (!comment) return;
+        const taskTitle = comment.text.substring(0, 50) || 'Comment task';
+        const taskBody = comment.quotedText
+          ? `Selected text: "${comment.quotedText}"\n\nComment: ${comment.text}\n\nAssigned to: ${assigneeAuthor.name}`
+          : `${comment.text}\n\nAssigned to: ${assigneeAuthor.name}`;
+        const createdTask = await createTask(getToken, {
+          title: taskTitle,
+          body: taskBody,
+          dueDate: comment.taskDueDate || undefined,
+        });
+        useCommentStore.getState().update(commentId, { todoTaskId: createdTask.id });
+      } catch {
+        // Graph API unavailable — assignment is still tracked locally in the doc
+        console.log('[MDEdit] To-Do sync unavailable; task tracked locally.');
+      }
+    },
+    [isAuthenticated, capabilities, getToken]
+  );
+
   // When a new comment is created, auto-enter edit mode and focus
   useEffect(() => {
     if (focusCommentId && comments[focusCommentId]) {
@@ -225,6 +270,28 @@ export function CommentSidebar({
     ? commentsArray
     : commentsArray.filter((c) => !c.resolved);
 
+  // Comments needing the current user's attention:
+  // unresolved, assigned to them or mentioning them
+  const attentionComments = React.useMemo(() => {
+    if (!currentUserId && !currentUserEmail) return [];
+    return commentsArray.filter((c) => {
+      if (c.resolved || c.taskCompleted) return false;
+      // Assigned to current user
+      if (c.assignedTo) {
+        if (c.assignedTo.id === currentUserId) return true;
+        if (currentUserEmail && c.assignedTo.email?.toLowerCase() === currentUserEmail.toLowerCase()) return true;
+      }
+      // Mentioned in comment
+      if (c.mentions?.length) {
+        return c.mentions.some((m) =>
+          m.id === currentUserId ||
+          (currentUserEmail && m.email?.toLowerCase() === currentUserEmail.toLowerCase())
+        );
+      }
+      return false;
+    });
+  }, [commentsArray, currentUserId, currentUserEmail]);
+
   const handleCommentClick = useCallback(
     (comment: Comment) => {
       onCommentClick(comment.id);
@@ -241,25 +308,18 @@ export function CommentSidebar({
 
   const handleSaveEdit = useCallback(
     async (commentId: string) => {
+      const previousComment = comments[commentId];
+      const hadAssignee = !!previousComment?.assignedTo;
+
       update(commentId, {
         text: editText,
         mentions,
         assignedTo: assignee,
       });
 
-      // Create task if assignee is set (only for providers with Todo API access)
-      if (assignee && isAuthenticated && capabilities?.canUseTodoTasks) {
-        try {
-          const comment = comments[commentId];
-          await createTask(getToken, {
-            title: editText.substring(0, 50) || 'Comment task',
-            body: comment?.quotedText
-              ? `Selected text: "${comment.quotedText}"\n\nComment: ${editText}`
-              : editText,
-          });
-        } catch (error) {
-          console.error('Failed to create task:', error);
-        }
+      // Create To-Do task only if assignee is newly set (wasn't assigned before)
+      if (assignee && !hadAssignee) {
+        await createTaskForComment(commentId, assignee);
       }
 
       setEditingId(null);
@@ -267,7 +327,7 @@ export function CommentSidebar({
       setMentions([]);
       setAssignee(null);
     },
-    [editText, mentions, assignee, update, comments, isAuthenticated, getToken, capabilities]
+    [editText, mentions, assignee, update, comments, createTaskForComment]
   );
 
   const handleCancelEdit = useCallback(() => {
@@ -331,6 +391,7 @@ export function CommentSidebar({
               email: person.email || '',
             };
             update(commentId, { assignedTo: assigneeAuthor });
+            await createTaskForComment(commentId, assigneeAuthor);
           }
         } catch (err) {
           console.error('Teams people picker failed:', err);
@@ -343,7 +404,7 @@ export function CommentSidebar({
         }
       }
     },
-    [isInTeams, update, comments, handleStartEdit]
+    [isInTeams, update, comments, handleStartEdit, createTaskForComment]
   );
 
   const dateFormatter = React.useMemo(
@@ -446,6 +507,23 @@ export function CommentSidebar({
           onChange={(_, data) => setShowResolved(!!data.checked)}
         />
       </div>
+
+      {attentionComments.length > 0 && (
+        <div
+          className={styles.attentionBanner}
+          onClick={() => {
+            // Scroll to the first attention comment
+            onCommentClick(attentionComments[0].id);
+          }}
+        >
+          <TaskListSquareLtr24Regular />
+          <Text size={200} weight="semibold">
+            {attentionComments.length === 1
+              ? '1 comment needs your attention'
+              : `${attentionComments.length} comments need your attention`}
+          </Text>
+        </div>
+      )}
 
       <div className={styles.list}>
         {filteredComments.map((comment) => (
@@ -556,6 +634,7 @@ export function CommentSidebar({
                           onClick={(e) => {
                             e.stopPropagation();
                             update(comment.id, { assignedTo: person });
+                            createTaskForComment(comment.id, person);
                           }}
                         >
                           Assign to {person.name}
@@ -570,9 +649,21 @@ export function CommentSidebar({
                     <TaskListSquareLtr24Regular />
                     <Checkbox
                       checked={comment.taskCompleted}
-                      onChange={(_, data) =>
-                        data.checked ? completeTask(comment.id) : uncompleteTask(comment.id)
-                      }
+                      onChange={async (_, data) => {
+                        if (data.checked) {
+                          completeTask(comment.id);
+                          if (comment.todoTaskId && capabilities?.canUseTodoTasks) {
+                            try { await completeTaskApi(getToken, comment.todoTaskId); }
+                            catch (err) { console.error('Failed to complete To-Do task:', err); }
+                          }
+                        } else {
+                          uncompleteTask(comment.id);
+                          if (comment.todoTaskId && capabilities?.canUseTodoTasks) {
+                            try { await uncompleteTaskApi(getToken, comment.todoTaskId); }
+                            catch (err) { console.error('Failed to uncomplete To-Do task:', err); }
+                          }
+                        }
+                      }}
                     />
                     <Text size={200}>Assigned to {comment.assignedTo.name}</Text>
                     {comment.taskDueDate && (

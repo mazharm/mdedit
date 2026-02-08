@@ -32,6 +32,7 @@ export interface Comment {
   assignedTo: Author | null;
   taskDueDate: Date | null;
   taskCompleted: boolean;
+  todoTaskId: string | null;
   mentions: Author[];
   quotedText: string;
 }
@@ -106,6 +107,7 @@ export const useCommentStore = create<CommentStore>((set, get) => ({
       assignedTo: input.assignedTo || null,
       taskDueDate: input.taskDueDate || null,
       taskCompleted: false,
+      todoTaskId: null,
       mentions: input.mentions || [],
       quotedText: input.quotedText || '',
     };

@@ -423,6 +423,8 @@ function AppContent() {
               isInTeams={isInTeams}
               focusCommentId={focusCommentId}
               onFocusHandled={() => setFocusCommentId(null)}
+              currentUserId={user?.id}
+              currentUserEmail={user?.mail || user?.userPrincipalName}
             />
           </div>
         ) : (
