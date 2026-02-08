@@ -2,13 +2,13 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
   "version": "1.0.0",
-  "id": "YOUR-TEAMS-APP-GUID-HERE",
+  "id": "7674997b-f4f4-45d7-ade3-90f41f0bac99",
   "packageName": "com.mdedit.teams",
   "developer": {
     "name": "MDEdit",
-    "websiteUrl": "https://localhost:3002",
-    "privacyUrl": "https://localhost:3002/privacy",
-    "termsOfUseUrl": "https://localhost:3002/terms"
+    "websiteUrl": "https://green-sky-0a669861e.1.azurestaticapps.net",
+    "privacyUrl": "https://green-sky-0a669861e.1.azurestaticapps.net/privacy",
+    "termsOfUseUrl": "https://green-sky-0a669861e.1.azurestaticapps.net/terms"
   },
   "icons": {
     "color": "color.png",
@@ -27,15 +27,15 @@
     {
       "entityId": "mdedit",
       "name": "Editor",
-      "contentUrl": "https://localhost:3002",
-      "websiteUrl": "https://localhost:3002",
+      "contentUrl": "https://green-sky-0a669861e.1.azurestaticapps.net",
+      "websiteUrl": "https://green-sky-0a669861e.1.azurestaticapps.net",
       "scopes": ["personal"]
     }
   ],
   "permissions": ["identity"],
-  "validDomains": ["*.localhost"],
+  "validDomains": ["green-sky-0a669861e.1.azurestaticapps.net"],
   "webApplicationInfo": {
-    "id": "YOUR-AAD-CLIENT-ID-HERE",
-    "resource": "api://localhost:3002/YOUR-AAD-CLIENT-ID-HERE"
+    "id": "7674997b-f4f4-45d7-ade3-90f41f0bac99",
+    "resource": "api://green-sky-0a669861e.1.azurestaticapps.net/7674997b-f4f4-45d7-ade3-90f41f0bac99"
   }
 }
