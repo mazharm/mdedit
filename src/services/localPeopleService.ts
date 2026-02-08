@@ -12,6 +12,9 @@ export function extractKnownAuthors(comments: Comment[]): Person[] {
     addAuthor(seen, comment.author);
     for (const reply of comment.replies) {
       addAuthor(seen, reply.author);
+      for (const mention of reply.mentions || []) {
+        addAuthor(seen, mention);
+      }
     }
     for (const mention of comment.mentions || []) {
       addAuthor(seen, mention);

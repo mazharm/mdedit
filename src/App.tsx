@@ -105,7 +105,7 @@ function AppContent() {
     signOut,
   } = useAuth();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [viewMode, setViewMode] = useState<ViewMode>('wysiwyg');
   const [showComments, setShowComments] = useState(true);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerMode, setFilePickerMode] = useState<'open' | 'save'>('open');
@@ -114,6 +114,7 @@ function AppContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [markdown, setMarkdown] = useState('');
   const [localFileHandle, setLocalFileHandle] = useState<FSAFileHandle | null>(null);
+  const [focusCommentId, setFocusCommentId] = useState<string | null>(null);
 
   const wysiwygRef = useRef<WysiwygEditorRef>(null);
   const markdownRef = useRef<MarkdownEditorRef>(null);
@@ -339,6 +340,9 @@ function AppContent() {
         });
         // Pass from/to positions to restore selection before applying mark
         wysiwygRef.current.addComment(comment.id, selection.from, selection.to);
+        // Ensure sidebar is visible and focus the new comment for editing
+        setShowComments(true);
+        setFocusCommentId(comment.id);
       }
     }
   }, []);
@@ -416,6 +420,9 @@ function AppContent() {
               onCollapse={() => setShowComments(false)}
               capabilities={capabilities}
               localAuthors={localAuthors}
+              isInTeams={isInTeams}
+              focusCommentId={focusCommentId}
+              onFocusHandled={() => setFocusCommentId(null)}
             />
           </div>
         ) : (

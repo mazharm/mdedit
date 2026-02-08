@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   makeStyles,
   tokens,
@@ -6,7 +6,6 @@ import {
   Button,
   Avatar,
   Checkbox,
-  Textarea,
   Tooltip,
   Badge,
 } from '@fluentui/react-components';
@@ -17,7 +16,10 @@ import {
   Send24Regular,
   TaskListSquareLtr24Regular,
   ChevronRight24Regular,
+  PersonAdd24Regular,
+  CheckmarkCircle24Regular,
 } from '@fluentui/react-icons';
+import { people } from '@microsoft/teams-js';
 import { useCommentStore, Comment } from '../../stores/commentStore';
 import { MentionPicker } from './MentionPicker';
 import { createTask } from '../../services/todoService';
@@ -130,6 +132,13 @@ const useStyles = makeStyles({
     borderRadius: tokens.borderRadiusMedium,
     marginTop: '8px',
   },
+  assignSuggestion: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    flexWrap: 'wrap',
+    marginTop: '4px',
+  },
   emptyState: {
     display: 'flex',
     flexDirection: 'column',
@@ -152,6 +161,9 @@ interface CommentSidebarProps {
   onCollapse?: () => void;
   capabilities?: AuthCapabilities;
   localAuthors?: Person[];
+  isInTeams?: boolean;
+  focusCommentId?: string | null;
+  onFocusHandled?: () => void;
 }
 
 export function CommentSidebar({
@@ -164,6 +176,9 @@ export function CommentSidebar({
   onCollapse,
   capabilities,
   localAuthors,
+  isInTeams = false,
+  focusCommentId,
+  onFocusHandled,
 }: CommentSidebarProps) {
   const styles = useStyles();
   const {
@@ -184,7 +199,26 @@ export function CommentSidebar({
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [mentions, setMentions] = useState<Person[]>([]);
+  const [replyMentions, setReplyMentions] = useState<Person[]>([]);
   const [assignee, setAssignee] = useState<Person | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // When a new comment is created, auto-enter edit mode and focus
+  useEffect(() => {
+    if (focusCommentId && comments[focusCommentId]) {
+      const comment = comments[focusCommentId];
+      setEditingId(comment.id);
+      setEditText(comment.text);
+      setMentions(comment.mentions || []);
+      setAssignee(comment.assignedTo || null);
+      // Focus the textarea after render
+      requestAnimationFrame(() => {
+        editTextareaRef.current?.focus();
+      });
+      // Clear the focus request so it can be re-triggered
+      onFocusHandled?.();
+    }
+  }, [focusCommentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commentsArray = Object.values(comments);
   const filteredComments = showResolved
@@ -246,23 +280,71 @@ export function CommentSidebar({
   const handleStartReply = useCallback((commentId: string) => {
     setReplyingTo(commentId);
     setReplyText('');
+    setReplyMentions([]);
   }, []);
 
   const handleSendReply = useCallback(
     (commentId: string) => {
       if (replyText.trim()) {
-        addReply(commentId, replyText, mentions);
+        addReply(commentId, replyText, replyMentions);
         setReplyingTo(null);
         setReplyText('');
-        setMentions([]);
+        setReplyMentions([]);
       }
     },
-    [replyText, mentions, addReply]
+    [replyText, replyMentions, addReply]
   );
 
   const handleMentionSelect = useCallback((person: Person) => {
     setMentions((prev) => [...prev, person]);
   }, []);
+
+  const handleReplyMentionSelect = useCallback((person: Person) => {
+    setReplyMentions((prev) => [...prev, person]);
+  }, []);
+
+  const handleReplyAndResolve = useCallback(
+    (commentId: string) => {
+      if (replyText.trim()) {
+        addReply(commentId, replyText, replyMentions);
+      }
+      completeTask(commentId);
+      resolve(commentId);
+      onCommentResolve?.(commentId);
+      setReplyingTo(null);
+      setReplyText('');
+      setReplyMentions([]);
+    },
+    [replyText, replyMentions, addReply, completeTask, resolve, onCommentResolve]
+  );
+
+  const handleAssign = useCallback(
+    async (commentId: string) => {
+      if (isInTeams && people.isSupported()) {
+        try {
+          const selected = await people.selectPeople({ singleSelect: true, title: 'Assign to' });
+          if (selected && selected.length > 0) {
+            const person = selected[0];
+            const assigneeAuthor = {
+              id: person.objectId,
+              name: person.displayName || 'Unknown',
+              email: person.email || '',
+            };
+            update(commentId, { assignedTo: assigneeAuthor });
+          }
+        } catch (err) {
+          console.error('Teams people picker failed:', err);
+        }
+      } else {
+        // For web: start editing the comment so user can use MentionPicker to set assignee
+        const comment = comments[commentId];
+        if (comment) {
+          handleStartEdit(comment);
+        }
+      }
+    },
+    [isInTeams, update, comments, handleStartEdit]
+  );
 
   const dateFormatter = React.useMemo(
     () => new Intl.DateTimeFormat('en-US', {
@@ -406,6 +488,16 @@ export function CommentSidebar({
                     />
                   </Tooltip>
                 )}
+                {!comment.assignedTo && (
+                  <Tooltip content="Assign" relationship="label">
+                    <Button
+                      icon={<PersonAdd24Regular />}
+                      size="small"
+                      appearance="subtle"
+                      onClick={() => handleAssign(comment.id)}
+                    />
+                  </Tooltip>
+                )}
                 <Tooltip content="Delete" relationship="label">
                   <Button
                     icon={<Delete24Regular />}
@@ -431,6 +523,8 @@ export function CommentSidebar({
                   isAuthenticated={isAuthenticated}
                   canUsePeopleSearch={capabilities?.canUsePeopleSearch}
                   localAuthors={localAuthors}
+                  isInTeams={isInTeams}
+                  inputRef={editTextareaRef}
                 />
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <Button
@@ -448,8 +542,28 @@ export function CommentSidebar({
             ) : (
               <>
                 <div className={styles.commentText} onClick={() => handleStartEdit(comment)}>
-                  {comment.text || <Text italic>Click to add comment text...</Text>}
+                  {renderMentions(comment.text, comment.mentions) || <Text italic>Click to add comment text...</Text>}
                 </div>
+
+                {!comment.assignedTo && comment.mentions?.length > 0 && (
+                  <div className={styles.assignSuggestion}>
+                    {comment.mentions.map((person) => (
+                      <Tooltip key={person.id} content={`Assign to ${person.name}`} relationship="label">
+                        <Button
+                          size="small"
+                          appearance="subtle"
+                          icon={<PersonAdd24Regular />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            update(comment.id, { assignedTo: person });
+                          }}
+                        >
+                          Assign to {person.name}
+                        </Button>
+                      </Tooltip>
+                    ))}
+                  </div>
+                )}
 
                 {comment.assignedTo && (
                   <div className={styles.taskInfo}>
@@ -492,18 +606,33 @@ export function CommentSidebar({
             {/* Reply input */}
             {replyingTo === comment.id ? (
               <div className={styles.replyInput} onClick={(e) => e.stopPropagation()}>
-                <Textarea
-                  value={replyText}
-                  onChange={(_, data) => setReplyText(data.value)}
-                  placeholder="Write a reply..."
-                  resize="vertical"
-                  style={{ flex: 1 }}
-                />
+                <div style={{ flex: 1 }}>
+                  <MentionPicker
+                    value={replyText}
+                    onChange={setReplyText}
+                    onMentionSelect={handleReplyMentionSelect}
+                    getToken={getToken}
+                    isAuthenticated={isAuthenticated}
+                    canUsePeopleSearch={capabilities?.canUsePeopleSearch}
+                    localAuthors={localAuthors}
+                    isInTeams={isInTeams}
+                    placeholder="Write a reply... (@ to mention)"
+                  />
+                </div>
                 <Button
                   icon={<Send24Regular />}
                   appearance="primary"
                   onClick={() => handleSendReply(comment.id)}
                 />
+                {comment.assignedTo && !comment.taskCompleted && !comment.resolved && (
+                  <Tooltip content="Reply & resolve task" relationship="label">
+                    <Button
+                      icon={<CheckmarkCircle24Regular />}
+                      appearance="primary"
+                      onClick={() => handleReplyAndResolve(comment.id)}
+                    />
+                  </Tooltip>
+                )}
               </div>
             ) : (
               <Button

@@ -295,6 +295,30 @@ export function useTeamsSSO() {
               isLoading: false,
               error: null,
             });
+
+            // Strategy 1 gives us user identity but no MSAL account.
+            // Try to silently establish an MSAL account in the background
+            // so getToken() works for Graph API calls (People, OneDrive, etc.)
+            (async () => {
+              try {
+                const response = await pca.ssoSilent({ scopes: LOGIN_SCOPES });
+                if (response?.account) {
+                  pca.setActiveAccount(response.account);
+                  console.log('[MDEdit Auth] Background ssoSilent succeeded — Graph API ready');
+                }
+              } catch {
+                try {
+                  const response = await pca.loginPopup({ scopes: LOGIN_SCOPES });
+                  if (response?.account) {
+                    pca.setActiveAccount(response.account);
+                    console.log('[MDEdit Auth] Background loginPopup succeeded — Graph API ready');
+                  }
+                } catch (e) {
+                  console.warn('[MDEdit Auth] Could not establish MSAL account for Graph API:', e);
+                }
+              }
+            })();
+
             return;
           } catch (authTokenError) {
             console.warn('[MDEdit Auth] Teams getAuthToken failed:', authTokenError);

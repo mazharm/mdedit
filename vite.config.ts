@@ -8,7 +8,7 @@ export default defineConfig(({ command }) => {
   const config = {
     plugins: [react()],
     server: {
-      port: 3000,
+      port: 3002,
       https: undefined as { key: Buffer; cert: Buffer } | undefined,
       headers: {
         // Allow Teams to embed this app in an iframe
