@@ -3,8 +3,12 @@
     "rewrite": "/index.html"
   },
   "globalHeaders": {
-    "Content-Security-Policy": "frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com https://*.microsoft.com https://teams.cloud.microsoft https://*.teams.cloud.microsoft",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://accounts.google.com; font-src 'self'; frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com https://*.microsoft.com https://teams.cloud.microsoft https://*.teams.cloud.microsoft",
     "X-Frame-Options": "ALLOW-FROM https://teams.microsoft.com",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Cross-Origin-Opener-Policy": "unsafe-none",
     "Cross-Origin-Embedder-Policy": "unsafe-none"
   }

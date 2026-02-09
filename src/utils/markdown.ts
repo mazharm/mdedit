@@ -189,7 +189,17 @@ export function extractCommentsFromMarkdown(markdown: string): {
 
   try {
     const commentsJson = commentsMatch[1];
-    const comments = JSON.parse(commentsJson);
+    // Use a reviver to strip prototype-pollution keys (__proto__, constructor, prototype)
+    const comments = JSON.parse(commentsJson, (key, value) => {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        return undefined;
+      }
+      return value;
+    });
+
+    if (!Array.isArray(comments)) {
+      return { markdown, comments: [] };
+    }
 
     // Convert date strings to Date objects
     const processedComments = comments.map((comment: Comment) => ({

@@ -17,7 +17,13 @@ function initMermaid() {
   mermaidInitialized = true;
 }
 
-// Sanitize SVG by stripping <script> tags and event handler attributes.
+// Dangerous element tags that must be removed from SVG output.
+const DANGEROUS_ELEMENTS = new Set([
+  'script', 'style', 'object', 'embed', 'iframe', 'applet', 'form', 'input',
+  'textarea', 'select', 'button', 'link', 'meta', 'base',
+]);
+
+// Sanitize SVG by stripping dangerous elements, event handlers, and unsafe URIs.
 // Parse as HTML (not XML) because mermaid generates HTML elements like <br>
 // inside <foreignObject> for label line breaks. Strict XML parsing would
 // reject these and corrupt the SVG output.
@@ -27,22 +33,29 @@ function sanitizeSvg(svg: string): string {
   const svgEl = doc.body.querySelector('svg');
   if (!svgEl) return svg; // Fallback to original if parsing failed
 
-  // Remove all script elements
-  svgEl.querySelectorAll('script').forEach((el) => el.remove());
+  // Remove all dangerous elements (script, style, object, embed, iframe, etc.)
+  for (const tag of DANGEROUS_ELEMENTS) {
+    svgEl.querySelectorAll(tag).forEach((el) => el.remove());
+  }
 
-  // Remove event handler attributes (onclick, onload, onerror, etc.)
+  // Remove event handler attributes and unsafe URIs from all remaining elements
   const allElements = svgEl.querySelectorAll('*');
   allElements.forEach((el) => {
     for (const attr of Array.from(el.attributes)) {
+      // Remove event handler attributes (onclick, onload, onerror, etc.)
       if (attr.name.startsWith('on')) {
         el.removeAttribute(attr.name);
       }
     }
-    // Remove javascript: URLs from href/xlink:href
-    const href = el.getAttribute('href') || el.getAttribute('xlink:href');
-    if (href && href.trim().toLowerCase().startsWith('javascript:')) {
-      el.removeAttribute('href');
-      el.removeAttribute('xlink:href');
+    // Remove javascript: and data: URLs from href/xlink:href
+    for (const attrName of ['href', 'xlink:href']) {
+      const val = el.getAttribute(attrName);
+      if (val) {
+        const trimmed = val.trim().toLowerCase();
+        if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:')) {
+          el.removeAttribute(attrName);
+        }
+      }
     }
   });
 
