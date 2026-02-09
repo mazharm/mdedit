@@ -16,6 +16,17 @@ interface GraphPerson {
 }
 
 /**
+ * Validate that an ID is safe for use in Graph API URL paths.
+ * Prevents path traversal and injection via crafted IDs.
+ */
+function validateId(id: string): string {
+  if (!id || /[/\\?#&]/.test(id)) {
+    throw new Error(`Invalid ID: ${id}`);
+  }
+  return id;
+}
+
+/**
  * Sanitize a search query to prevent OData injection.
  * Strips characters that could break OData query syntax.
  */
@@ -87,7 +98,8 @@ export async function getUserPhoto(
   userId: string
 ): Promise<string | null> {
   try {
-    const photoBlob = await graphGet<Blob>(getToken, `/users/${userId}/photo/$value`);
+    const safeUserId = validateId(userId);
+    const photoBlob = await graphGet<Blob>(getToken, `/users/${safeUserId}/photo/$value`);
 
     return new Promise((resolve) => {
       const reader = new FileReader();

@@ -2,6 +2,28 @@ export type GetTokenFn = () => Promise<string | null>;
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
+/** Domains that are safe to send Bearer tokens to. */
+const ALLOWED_TOKEN_HOSTS = [
+  'graph.microsoft.com',
+  'login.microsoftonline.com',
+];
+
+/**
+ * Validate that a full URL is safe to receive a Bearer token.
+ * Only Microsoft Graph and login domains are allowed.
+ */
+function validateTokenUrl(url: string): void {
+  try {
+    const parsed = new URL(url);
+    if (!ALLOWED_TOKEN_HOSTS.some((host) => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`))) {
+      throw new GraphError(`Refusing to send token to untrusted host: ${parsed.hostname}`, 400, 'UntrustedHost');
+    }
+  } catch (e) {
+    if (e instanceof GraphError) throw e;
+    throw new GraphError(`Invalid URL: ${url}`, 400, 'InvalidUrl');
+  }
+}
+
 export interface GraphUser {
   id: string;
   displayName: string;
@@ -53,6 +75,9 @@ async function graphFetch<T>(
   }
 
   const url = endpoint.startsWith('http') ? endpoint : `${GRAPH_BASE_URL}${endpoint}`;
+
+  // Ensure we never send tokens to untrusted domains
+  validateTokenUrl(url);
 
   const response = await fetch(url, {
     ...options,
@@ -124,6 +149,9 @@ export async function graphPut<T>(
   }
 
   const url = endpoint.startsWith('http') ? endpoint : `${GRAPH_BASE_URL}${endpoint}`;
+
+  // Ensure we never send tokens to untrusted domains
+  validateTokenUrl(url);
 
   const response = await fetch(url, {
     method: 'PUT',

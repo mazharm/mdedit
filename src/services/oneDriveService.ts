@@ -130,6 +130,16 @@ export async function createFile(
     // Ensure filename ends with .md
     const name = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
 
+    // Reject path traversal sequences and dangerous characters in fileName
+    if (/[\\?#&]/.test(name) || name.includes('..')) {
+      throw new Error(`Invalid file name: ${name}`);
+    }
+
+    // Reject path traversal in parentPath
+    if (parentPath && (parentPath.includes('..') || /[\\?#&]/.test(parentPath))) {
+      throw new Error(`Invalid parent path: ${parentPath}`);
+    }
+
     // Create file at path
     const path = parentPath ? `${parentPath}/${name}` : name;
     const encodedPath = encodeURIComponent(path).replace(/%2F/g, '/');
