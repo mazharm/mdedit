@@ -23,7 +23,6 @@ import { WysiwygEditor } from './components/Editor/WysiwygEditor';
 import { MarkdownEditor } from './components/Editor/MarkdownEditor';
 import { CommentSidebar } from './components/Comments/CommentSidebar';
 import { FilePicker } from './components/FileManager/FilePicker';
-import { SignInDialog } from './components/Auth/SignInDialog';
 import { useCommentStore } from './stores/commentStore';
 import { useFileStore } from './stores/fileStore';
 import { extractCommentsFromMarkdown, embedCommentsInMarkdown } from './utils/markdown';
@@ -32,7 +31,6 @@ import { extractKnownAuthors } from './services/localPeopleService';
 import type { FSAFileHandle } from './components/FileManager/FilePicker';
 import type { WysiwygEditorRef, MarkdownEditorRef } from './stores/editorStore';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const useStyles = makeStyles({
   container: {
@@ -102,7 +100,6 @@ function AppContent() {
     isInTeams,
     getToken,
     signInWithMicrosoft,
-    signInWithGoogle,
     signOut,
   } = useAuth();
 
@@ -110,7 +107,6 @@ function AppContent() {
   const [showComments, setShowComments] = useState(true);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerMode, setFilePickerMode] = useState<'open' | 'save'>('open');
-  const [showSignInDialog, setShowSignInDialog] = useState(false);
   const isUpdatingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [markdown, setMarkdown] = useState('');
@@ -414,10 +410,10 @@ function AppContent() {
     }
   }, []);
 
-  // Open sign-in dialog
+  // Sign in directly with Microsoft (no provider picker)
   const handleOpenSignIn = useCallback(() => {
-    setShowSignInDialog(true);
-  }, []);
+    signInWithMicrosoft();
+  }, [signInWithMicrosoft]);
 
   // Loading state
   if (!isInitialized) {
@@ -520,13 +516,6 @@ function AppContent() {
         capabilities={capabilities}
       />
 
-      <SignInDialog
-        open={showSignInDialog}
-        onOpenChange={setShowSignInDialog}
-        onSignInWithMicrosoft={signInWithMicrosoft}
-        onSignInWithGoogle={signInWithGoogle}
-        googleEnabled={!!GOOGLE_CLIENT_ID && !isInTeams && !isInVSCode()}
-      />
     </div>
   );
 }
