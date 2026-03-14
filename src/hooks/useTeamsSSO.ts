@@ -92,7 +92,7 @@ async function getMsalInstance(): Promise<IPublicClientApplication> {
             auth: {
               clientId: AAD_CLIENT_ID,
               authority: `https://login.microsoftonline.com/${AAD_TENANT_ID}`,
-              redirectUri: window.location.origin,
+              redirectUri: `${window.location.origin}${import.meta.env.BASE_URL}`,
             },
             cache: {
               cacheLocation: BrowserCacheLocation.LocalStorage,
@@ -107,7 +107,7 @@ async function getMsalInstance(): Promise<IPublicClientApplication> {
           auth: {
             clientId: AAD_CLIENT_ID,
             authority: `https://login.microsoftonline.com/${AAD_TENANT_ID}`,
-            redirectUri: window.location.origin,
+            redirectUri: `${window.location.origin}${import.meta.env.BASE_URL}`,
           },
           cache: {
             cacheLocation: BrowserCacheLocation.LocalStorage,
@@ -169,7 +169,7 @@ export function useTeamsSSO() {
           // Need interactive consent for additional scopes
           console.log('Silent token acquisition failed, requesting consent via popup');
           try {
-            const response = await pca.acquireTokenPopup({ scopes: GRAPH_SCOPES, account: accounts[0], redirectUri: `${window.location.origin}/auth-popup.html` });
+            const response = await pca.acquireTokenPopup({ scopes: GRAPH_SCOPES, account: accounts[0], redirectUri: `${window.location.origin}${import.meta.env.BASE_URL}auth-popup.html` });
             tokenCache.current = {
               token: response.accessToken,
               expiresAt: response.expiresOn?.getTime() || Date.now() + 3600000,
@@ -463,7 +463,7 @@ export function useTeamsSSO() {
         // Standalone browser: use popup with redirect bridge
         const loginRequest: PopupRequest = {
           scopes: LOGIN_SCOPES,
-          redirectUri: `${window.location.origin}/auth-popup.html`,
+          redirectUri: `${window.location.origin}${import.meta.env.BASE_URL}auth-popup.html`,
         };
 
         const response = await pca.loginPopup(loginRequest);
